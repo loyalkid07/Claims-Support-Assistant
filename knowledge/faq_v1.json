@@ -1,0 +1,112 @@
+[
+  {
+    "topic_id": "office_hours",
+    "version": "faq-v1",
+    "answer_text": "Our claims service hours are Monday through Friday, 9 a.m. to 5 p.m. Eastern Time, excluding holidays.",
+    "access_class": "PUBLIC",
+    "effective_from": "2026-09-26",
+    "effective_to": null,
+    "source_note": "Approved synthetic Observe Insurance FAQ v1",
+    "is_active": true
+  },
+  {
+    "topic_id": "mailing_address",
+    "version": "faq-v1",
+    "answer_text": "Observe Insurance Claims Center, 500 Assurance Way, Suite 400, Sacramento, California 95814. This is a fictional, non-deliverable demo address.",
+    "access_class": "PUBLIC",
+    "effective_from": "2026-09-26",
+    "effective_to": null,
+    "source_note": "Approved synthetic Observe Insurance FAQ v1",
+    "is_active": true
+  },
+  {
+    "topic_id": "start_new_claim",
+    "version": "faq-v1",
+    "answer_text": "A representative can start a new claim. I can provide status and general guidance, but I cannot file a new claim.",
+    "access_class": "PUBLIC",
+    "effective_from": "2026-09-26",
+    "effective_to": null,
+    "source_note": "Approved synthetic Observe Insurance FAQ v1",
+    "is_active": true
+  },
+  {
+    "topic_id": "what_to_gather",
+    "version": "faq-v1",
+    "answer_text": "You may want policyholder and contact details, your policy number if available, incident date, time and location, a description, involved parties, and relevant photos, reports, estimates or receipts. These are examples, not a required list for every claim.",
+    "access_class": "PUBLIC",
+    "effective_from": "2026-09-26",
+    "effective_to": null,
+    "source_note": "Approved synthetic Observe Insurance FAQ v1",
+    "is_active": true
+  },
+  {
+    "topic_id": "general_process",
+    "version": "faq-v1",
+    "answer_text": "Generally, a claim is reported, assigned a claim number or representative, reviewed for facts and coverage, and may need an inspection or documents before a decision is communicated. Payment or closure may follow when applicable. Actual steps and timing vary by claim and policy.",
+    "access_class": "PUBLIC",
+    "effective_from": "2026-09-26",
+    "effective_to": null,
+    "source_note": "Approved synthetic Observe Insurance FAQ v1",
+    "is_active": true
+  },
+  {
+    "topic_id": "general_documents",
+    "version": "faq-v1",
+    "answer_text": "Common examples may include photos, reports, estimates and receipts. The exact list is claim-specific; I can help check a verified demo claim or connect you with a representative.",
+    "access_class": "PUBLIC",
+    "effective_from": "2026-09-26",
+    "effective_to": null,
+    "source_note": "Approved synthetic Observe Insurance FAQ v1",
+    "is_active": true
+  },
+  {
+    "topic_id": "document_submission_general",
+    "version": "faq-v1",
+    "answer_text": "Use the secure submission method provided for your claim and keep copies. Do not email sensitive documents to an unverified address. I can check the instructions for a verified demo claim.",
+    "access_class": "PUBLIC",
+    "effective_from": "2026-09-26",
+    "effective_to": null,
+    "source_note": "Approved synthetic Observe Insurance FAQ v1",
+    "is_active": true
+  },
+  {
+    "topic_id": "timing_general",
+    "version": "faq-v1",
+    "answer_text": "Timing depends on the claim's complexity, coverage review, and whether more information is needed. I cannot promise a universal resolution date.",
+    "access_class": "PUBLIC",
+    "effective_from": "2026-09-26",
+    "effective_to": null,
+    "source_note": "Approved synthetic Observe Insurance FAQ v1",
+    "is_active": true
+  },
+  {
+    "topic_id": "complaint_or_disagreement",
+    "version": "faq-v1",
+    "answer_text": "I understand your concern. I can help connect you with a claims representative or manager to discuss it; I cannot change a claim decision or give legal advice.",
+    "access_class": "PUBLIC",
+    "effective_from": "2026-09-26",
+    "effective_to": null,
+    "source_note": "Approved synthetic Observe Insurance FAQ v1",
+    "is_active": true
+  },
+  {
+    "topic_id": "emergency",
+    "version": "faq-v1",
+    "answer_text": "I cannot provide emergency help. If anyone is in immediate danger, please contact your local emergency services now. I can help with a representative afterward if appropriate.",
+    "access_class": "PUBLIC",
+    "effective_from": "2026-09-26",
+    "effective_to": null,
+    "source_note": "Approved synthetic Observe Insurance FAQ v1",
+    "is_active": true
+  },
+  {
+    "topic_id": "unsupported",
+    "version": "faq-v1",
+    "answer_text": "I do not have that information. Would you like me to help connect you with a representative?",
+    "access_class": "PUBLIC",
+    "effective_from": "2026-09-26",
+    "effective_to": null,
+    "source_note": "Approved synthetic Observe Insurance FAQ v1",
+    "is_active": true
+  }
+]

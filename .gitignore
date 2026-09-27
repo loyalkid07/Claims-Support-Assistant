@@ -1,0 +1,35 @@
+# Local design history, interview context, and private working artifacts.
+context bin/
+
+# Secrets and local environment files.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python and uv.
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Local runtime and editor state.
+.livekit/
+.vscode/
+.idea/
+*.log
+
+# Raw call evidence may contain audio, transcripts, or identifiers.
+evidence/raw/
+
+# OS files.
+.DS_Store
+Thumbs.db
