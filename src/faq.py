@@ -5,7 +5,7 @@ from datetime import date
 
 from errors import PolicyError
 
-KB_VERSION = "faq-v1"
+KB_VERSION = "faq-v2"
 TOPICS = frozenset(
     {
         "office_hours",

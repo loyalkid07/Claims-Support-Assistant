@@ -23,21 +23,27 @@ from identifiers import (
 
 ROOT = Path(__file__).resolve().parents[1]
 FACTORS = ROOT / "context bin" / "fixtures" / "demo_factors.json"
-FAQ_SOURCE = ROOT / "knowledge" / "faq_v1.json"
+FAQ_SOURCE = ROOT / "knowledge" / "faq_v2.json"
 CASES = {
     "maya": {
+        "claim_type": "AUTO_PHYSICAL_DAMAGE",
+        "loss_date": "2026-09-18",
         "status_code": "AWAITING_DOCUMENTS",
         "status_display": "Awaiting documents",
         "last_updated_at": "2026-09-24T12:00:00+00:00",
-        "next_action": "Submit a repair estimate and two damage photographs",
-        "required_documents": ["Repair estimate", "Two damage photographs"],
-        "submission_method": "SECURE_UPLOAD_ALREADY_ISSUED",
-        "submission_instructions": "Use the secure upload link previously issued for this test claim.",
-        "mailing_fallback_allowed": True,
+        "next_action": "Provide a repair estimate and two vehicle damage photographs",
+        "required_documents": ["Repair estimate", "Two vehicle damage photographs"],
+        "submission_method": "UNKNOWN",
+        "submission_instructions": "Ask a claims representative for the verified secure submission method. This assistant cannot accept documents on the call.",
+        "mailing_fallback_allowed": False,
         "document_receipt_status": "NOT_CONFIRMED",
         "document_received_at": None,
+        "estimated_next_step_at": None,
+        "record_version": 2,
     },
     "eli": {
+        "claim_type": "AUTO_PHYSICAL_DAMAGE",
+        "loss_date": "2026-09-19",
         "status_code": "IN_REVIEW",
         "status_display": "In review",
         "last_updated_at": "2026-09-25T12:00:00+00:00",
@@ -48,19 +54,88 @@ CASES = {
         "mailing_fallback_allowed": False,
         "document_receipt_status": "NOT_CONFIRMED",
         "document_received_at": None,
+        "estimated_next_step_at": None,
+        "record_version": 2,
     },
     "noor": {
-        "status_code": "DOCUMENTS_RECEIVED",
-        "status_display": "Documents received",
+        "claim_type": "AUTO_PHYSICAL_DAMAGE",
+        "loss_date": "2026-09-20",
+        "status_code": "IN_REVIEW",
+        "status_display": "In review",
         "last_updated_at": "2026-09-25T12:00:00+00:00",
-        "next_action": "The claim is awaiting review",
+        "next_action": "A claims specialist will review the documents received",
         "required_documents": [],
         "submission_method": "NONE",
         "submission_instructions": "No further upload is requested at this time.",
         "mailing_fallback_allowed": False,
         "document_receipt_status": "RECEIVED",
         "document_received_at": "2026-09-25T11:30:00+00:00",
+        "estimated_next_step_at": None,
+        "record_version": 2,
     },
+    "avery": {
+        "claim_type": "AUTO_PHYSICAL_DAMAGE",
+        "loss_date": "2026-09-22",
+        "status_code": "AWAITING_DOCUMENTS",
+        "status_display": "Awaiting documents",
+        "last_updated_at": "2026-09-26T14:00:00+00:00",
+        "next_action": "Provide the outstanding repair estimate; vehicle damage photos are already recorded as received",
+        "required_documents": ["Repair estimate"],
+        "submission_method": "UNKNOWN",
+        "submission_instructions": "Ask a claims representative for the verified secure submission method. This assistant cannot accept documents on the call.",
+        "mailing_fallback_allowed": False,
+        "document_receipt_status": "PARTIAL",
+        "document_received_at": "2026-09-25T15:30:00+00:00",
+        "estimated_next_step_at": None,
+    },
+    "samira": {
+        "claim_type": "AUTO_PHYSICAL_DAMAGE",
+        "loss_date": "2026-09-23",
+        "status_code": "IN_REVIEW",
+        "status_display": "In review",
+        "last_updated_at": "2026-09-26T16:00:00+00:00",
+        "next_action": "A claims specialist is arranging an inspection of the vehicle damage",
+        "required_documents": [],
+        "submission_method": "NONE",
+        "submission_instructions": "No documents are currently requested.",
+        "mailing_fallback_allowed": False,
+        "document_receipt_status": "NOT_CONFIRMED",
+        "document_received_at": None,
+        "estimated_next_step_at": "2026-09-30T14:00:00+00:00",
+    },
+    "rene": {
+        "claim_type": "AUTO_PHYSICAL_DAMAGE",
+        "loss_date": "2026-09-03",
+        "status_code": "CLOSED",
+        "status_display": "Closed",
+        "last_updated_at": "2026-09-24T13:00:00+00:00",
+        "next_action": "No action is currently requested",
+        "required_documents": [],
+        "submission_method": "NONE",
+        "submission_instructions": "No documents are currently requested.",
+        "mailing_fallback_allowed": False,
+        "document_receipt_status": "NOT_CONFIRMED",
+        "document_received_at": None,
+        "estimated_next_step_at": None,
+    },
+}
+
+SECONDARY_CASES = {
+    "maya": {
+        "claim_type": "AUTO_PHYSICAL_DAMAGE",
+        "loss_date": "2026-08-10",
+        "status_code": "CLOSED",
+        "status_display": "Closed",
+        "last_updated_at": "2026-09-20T13:00:00+00:00",
+        "next_action": "No action is currently requested",
+        "required_documents": [],
+        "submission_method": "NONE",
+        "submission_instructions": "No documents are currently requested.",
+        "mailing_fallback_allowed": False,
+        "document_receipt_status": "NOT_CONFIRMED",
+        "document_received_at": None,
+        "estimated_next_step_at": None,
+    }
 }
 
 
@@ -95,10 +170,30 @@ def build_rows(factors: dict, secret: bytes) -> tuple[list[dict], list[dict]]:
                 "claim_id_display": normalize_claim_id(source["claim_id"]),
                 "assigned_representative_name": None,
                 "assigned_representative_contact": None,
-                "record_version": 1,
+                "record_version": case.get("record_version", 1),
                 **case,
             }
         )
+        if key in SECONDARY_CASES:
+            secondary = SECONDARY_CASES[key]
+            claims.append(
+                {
+                    "claim_pk": source["secondary_claim_pk"],
+                    "customer_id": customer_id,
+                    "claim_lookup_hmac": lookup_token(
+                        secret,
+                        "claim",
+                        normalize_claim_id(source["secondary_claim_id"]),
+                    ),
+                    "claim_id_display": normalize_claim_id(
+                        source["secondary_claim_id"]
+                    ),
+                    "assigned_representative_name": None,
+                    "assigned_representative_contact": None,
+                    "record_version": 1,
+                    **secondary,
+                }
+            )
     return customers, claims
 
 

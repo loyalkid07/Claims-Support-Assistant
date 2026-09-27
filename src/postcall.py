@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
 
+from faq import KB_VERSION
 from session_state import Auth, SessionState
 
 
@@ -16,12 +17,51 @@ class CallerCue(str, Enum):
 
 class TrustedEvent(str, Enum):
     FAQ_ANSWERED = "FAQ_ANSWERED"
+    FAQ_OFFICE_HOURS = "FAQ_OFFICE_HOURS"
+    FAQ_MAILING_ADDRESS = "FAQ_MAILING_ADDRESS"
+    FAQ_START_NEW_CLAIM = "FAQ_START_NEW_CLAIM"
+    FAQ_WHAT_TO_GATHER = "FAQ_WHAT_TO_GATHER"
+    FAQ_GENERAL_PROCESS = "FAQ_GENERAL_PROCESS"
+    FAQ_GENERAL_DOCUMENTS = "FAQ_GENERAL_DOCUMENTS"
+    FAQ_DOCUMENT_SUBMISSION_GENERAL = "FAQ_DOCUMENT_SUBMISSION_GENERAL"
+    FAQ_TIMING_GENERAL = "FAQ_TIMING_GENERAL"
+    FAQ_COMPLAINT_OR_DISAGREEMENT = "FAQ_COMPLAINT_OR_DISAGREEMENT"
+    FAQ_EMERGENCY = "FAQ_EMERGENCY"
+    FAQ_UNSUPPORTED = "FAQ_UNSUPPORTED"
     CLAIM_STATUS_PROVIDED = "CLAIM_STATUS_PROVIDED"
     VERIFICATION_FAILED = "VERIFICATION_FAILED"
     HANDOFF_REQUESTED = "HANDOFF_REQUESTED"
     HANDOFF_CONNECTED = "HANDOFF_CONNECTED"
     HANDOFF_UNAVAILABLE = "HANDOFF_UNAVAILABLE"
     CALLER_DISCONNECTED = "CALLER_DISCONNECTED"
+
+
+FAQ_TOPIC_EVENTS = {
+    "office_hours": TrustedEvent.FAQ_OFFICE_HOURS,
+    "mailing_address": TrustedEvent.FAQ_MAILING_ADDRESS,
+    "start_new_claim": TrustedEvent.FAQ_START_NEW_CLAIM,
+    "what_to_gather": TrustedEvent.FAQ_WHAT_TO_GATHER,
+    "general_process": TrustedEvent.FAQ_GENERAL_PROCESS,
+    "general_documents": TrustedEvent.FAQ_GENERAL_DOCUMENTS,
+    "document_submission_general": TrustedEvent.FAQ_DOCUMENT_SUBMISSION_GENERAL,
+    "timing_general": TrustedEvent.FAQ_TIMING_GENERAL,
+    "complaint_or_disagreement": TrustedEvent.FAQ_COMPLAINT_OR_DISAGREEMENT,
+    "emergency": TrustedEvent.FAQ_EMERGENCY,
+    "unsupported": TrustedEvent.FAQ_UNSUPPORTED,
+}
+FAQ_TOPIC_LABELS = {
+    TrustedEvent.FAQ_OFFICE_HOURS: "office hours",
+    TrustedEvent.FAQ_MAILING_ADDRESS: "the mailing address",
+    TrustedEvent.FAQ_START_NEW_CLAIM: "starting a new claim",
+    TrustedEvent.FAQ_WHAT_TO_GATHER: "what to gather for a claim",
+    TrustedEvent.FAQ_GENERAL_PROCESS: "the claims process",
+    TrustedEvent.FAQ_GENERAL_DOCUMENTS: "common claim documents",
+    TrustedEvent.FAQ_DOCUMENT_SUBMISSION_GENERAL: "document submission",
+    TrustedEvent.FAQ_TIMING_GENERAL: "general claim timing",
+    TrustedEvent.FAQ_COMPLAINT_OR_DISAGREEMENT: "raising a concern",
+    TrustedEvent.FAQ_EMERGENCY: "emergency guidance",
+    TrustedEvent.FAQ_UNSUPPORTED: "an unsupported question",
+}
 
 
 CALLER_SENTIMENT_RUBRIC = (
@@ -49,7 +89,7 @@ class Interaction:
     agent_version: str = "local-dev"
     prompt_version: str = "local-dev"
     workflow_version: str = "local-dev"
-    kb_version: str = "faq-v1"
+    kb_version: str = KB_VERSION
     model_stack_version: str = "local-dev"
     trace_id: str = ""
 
@@ -143,18 +183,26 @@ def build_fallback_interaction(
     claim_done = TrustedEvent.CLAIM_STATUS_PROVIDED in observed and authenticated
     faq_done = TrustedEvent.FAQ_ANSWERED in observed
     verification_failed = TrustedEvent.VERIFICATION_FAILED in observed
+    topics = [label for event, label in FAQ_TOPIC_LABELS.items() if event in observed]
+    faq_detail = " about " + ", ".join(topics) if topics else ""
     if claim_done and faq_done:
-        summary = "The verified caller received a claim status update and approved general claims guidance."
+        summary = (
+            "The verified caller received a claim status update and approved "
+            f"general claims guidance{faq_detail}."
+        )
     elif claim_done:
         summary = "The verified caller received a claim status update."
     elif verification_failed and faq_done:
-        summary = "The caller could not complete verification but received approved general claims guidance."
+        summary = (
+            "The caller could not complete verification but received approved "
+            f"general claims guidance{faq_detail}."
+        )
     elif verification_failed:
         summary = (
             "The caller requested claim information, but verification did not complete."
         )
     elif faq_done:
-        summary = "The caller received approved general claims guidance."
+        summary = f"The caller received approved general claims guidance{faq_detail}."
     elif TrustedEvent.HANDOFF_REQUESTED in observed:
         summary = "The caller requested a representative."
     else:

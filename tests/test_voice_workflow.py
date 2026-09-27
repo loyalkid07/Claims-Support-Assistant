@@ -37,7 +37,7 @@ def _workflow() -> VoiceWorkflow:
     rows = [
         {
             "topic_id": topic,
-            "version": "faq-v1",
+            "version": "faq-v2",
             "answer_text": f"Approved {topic} answer.",
             "access_class": "PUBLIC",
             "effective_from": "2026-09-26",
@@ -63,6 +63,8 @@ def test_public_faq_needs_no_verification_or_verbal_continuation() -> None:
     workflow.state.accept_consent()  # Session entry completed; no caller yes turn.
     assert workflow.prepare_phone("415 555 0142")["status"] == "confirm_phone"
     assert TrustedEvent.FAQ_ANSWERED in workflow.events
+    assert TrustedEvent.FAQ_OFFICE_HOURS in workflow.events
+    assert TrustedEvent.FAQ_EMERGENCY in workflow.events
 
 
 def test_sentiment_cues_use_caller_turns_without_retaining_text() -> None:

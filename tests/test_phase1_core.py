@@ -221,6 +221,19 @@ def test_verified_name_is_allowed_only_after_server_verification() -> None:
     assert "Maya Chen" not in result.summary
 
 
+def test_postcall_summary_names_only_trusted_faq_topic() -> None:
+    state = SessionState(room_name="synthetic-room")
+    state.end()
+    result = CompletionOnce().build(
+        state,
+        (TrustedEvent.FAQ_ANSWERED, TrustedEvent.FAQ_OFFICE_HOURS),
+    )
+    assert result.summary == (
+        "The caller received approved general claims guidance about office hours."
+    )
+    assert result.caller_name == "unknown/unverified"
+
+
 def test_mixed_call_summary_keeps_completed_actions_and_handoff_outcome() -> None:
     state = SessionState(room_name="synthetic-room")
     state.accept_consent()

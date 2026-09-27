@@ -381,8 +381,8 @@ async def claims_support_agent(ctx: JobContext) -> None:
     )
     await ctx.connect()
     session.say(OPENING)
-    # The caller joined the invited test entry and the spoken notice has begun.
-    # This legacy state flag enables tools without a separate verbal yes turn.
+    # The invited entry path owns the pre-call notice. This legacy state flag
+    # enables tools without a spoken yes; it is not identity verification.
     state.accept_consent()
 
 

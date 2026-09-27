@@ -30,7 +30,7 @@ def test_complete_pinned_snapshot_and_unknown_topic() -> None:
         "status": "found",
         "topic_id": "office_hours",
         "answer_text": "Approved public answer for office_hours.",
-        "version": "faq-v1",
+        "version": "faq-v2",
         "effective_date": "2026-09-26",
         "access_class": "PUBLIC",
     }
@@ -51,6 +51,7 @@ def test_reviewer_visible_faq_source_matches_seed_contract() -> None:
         "fictional, non-deliverable"
         in snapshot.get_faq("mailing_address")["answer_text"]
     )
+    assert "demo claim" not in snapshot.get_faq("general_documents")["answer_text"]
 
 
 @pytest.mark.parametrize(
@@ -59,7 +60,7 @@ def test_reviewer_visible_faq_source_matches_seed_contract() -> None:
         lambda rows: rows.pop(),
         lambda rows: rows.append(rows[0].copy()),
         lambda rows: rows[0].update(access_class="AUTHENTICATED_GENERAL"),
-        lambda rows: rows[0].update(version="faq-v2"),
+        lambda rows: rows[0].update(version="faq-v1"),
         lambda rows: rows[0].update(answer_text="https://unapproved.example"),
         lambda rows: rows[0].update(effective_to="2026-09-26"),
     ],
@@ -75,7 +76,7 @@ def test_snapshot_rejects_incomplete_or_unapproved_rows(mutate) -> None:
 async def test_supabase_loads_one_versioned_snapshot() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path.endswith("/faq_entries")
-        assert request.url.params["version"] == "eq.faq-v1"
+        assert request.url.params["version"] == "eq.faq-v2"
         assert request.url.params["is_active"] == "eq.true"
         return httpx.Response(200, json=_rows())
 

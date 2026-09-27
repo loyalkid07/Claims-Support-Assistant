@@ -1,7 +1,7 @@
 """Server-only Supabase reads and a strictly bounded spoken claim projection."""
 
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -13,7 +13,8 @@ from session_state import Auth, SessionState
 from verification import CustomerCandidate
 
 _CLAIM_FIELDS = (
-    "claim_id_display,status_code,status_display,last_updated_at,next_action,"
+    "claim_id_display,claim_type,loss_date,status_code,status_display,"
+    "last_updated_at,next_action,estimated_next_step_at,"
     "required_documents,submission_method,submission_instructions,"
     "mailing_fallback_allowed,document_receipt_status,document_received_at,"
     "assigned_representative_name,assigned_representative_contact,record_version"
@@ -41,6 +42,21 @@ def _optional_text(value: object) -> str | None:
     if not isinstance(value, str) or len(value) > 500 or "http" in value.lower():
         raise PolicyError("VALIDATION_ERROR")
     return value
+
+
+def _optional_date(value: object) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise PolicyError("VALIDATION_ERROR")
+    try:
+        return date.fromisoformat(value).isoformat()
+    except ValueError as exc:
+        raise PolicyError("VALIDATION_ERROR") from exc
+
+
+def _optional_utc_date(value: object) -> str | None:
+    return None if value is None else _utc_date(value)
 
 
 def claim_projection(row: dict) -> dict:
@@ -90,13 +106,24 @@ def claim_projection(row: dict) -> dict:
     received = row.get("document_received_at")
     if received is not None:
         _utc_date(received)
+    claim_type = row.get("claim_type")
+    if claim_type is not None and claim_type != "AUTO_PHYSICAL_DAMAGE":
+        raise PolicyError("VALIDATION_ERROR")
+    loss_date = _optional_date(row.get("loss_date"))
+    last_updated_date = _utc_date(row.get("last_updated_at"))
+    if loss_date is not None and loss_date > last_updated_date:
+        raise PolicyError("VALIDATION_ERROR")
+    estimated_next_step_date = _optional_utc_date(row.get("estimated_next_step_at"))
     rep_name = _optional_text(row.get("assigned_representative_name"))
     rep_contact = _optional_text(row.get("assigned_representative_contact"))
     return {
         "claim_id_display": claim_id,
+        "claim_type": claim_type,
+        "loss_date": loss_date,
         "status": status,
-        "last_updated_date": _utc_date(row.get("last_updated_at")),
+        "last_updated_date": last_updated_date,
         "next_action": _optional_text(row.get("next_action")),
+        "estimated_next_step_date": estimated_next_step_date,
         "required_documents": documents,
         "submission": {
             "method": method,

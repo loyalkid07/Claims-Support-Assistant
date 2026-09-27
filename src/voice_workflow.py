@@ -11,7 +11,7 @@ from handoff import (
     SupabaseHandoffRepository,
 )
 from identifiers import extract_labeled_bundle
-from postcall import CallerCue, TrustedEvent
+from postcall import FAQ_TOPIC_EVENTS, CallerCue, TrustedEvent
 from session_state import Auth, Handoff, Route, SessionState
 from supabase_claims import SupabaseClaimsRepository
 from verification import IdentityVerifier
@@ -117,6 +117,7 @@ class VoiceWorkflow:
         result = self.faq.get_faq(topic_id)
         if result["status"] == "found":
             self.events.append(TrustedEvent.FAQ_ANSWERED)
+            self.events.append(FAQ_TOPIC_EVENTS[topic_id])
         return result
 
     async def request_representative(self, reason_category: str | None = None) -> dict:

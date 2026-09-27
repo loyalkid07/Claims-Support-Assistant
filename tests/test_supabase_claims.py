@@ -12,6 +12,8 @@ CLAIM = "22222222-2222-4222-8222-222222222222"
 def _row() -> dict:
     return {
         "claim_id_display": "CLM-482731",
+        "claim_type": "AUTO_PHYSICAL_DAMAGE",
+        "loss_date": "2026-09-18",
         "status_code": "AWAITING_DOCUMENTS",
         "status_display": "Awaiting documents",
         "last_updated_at": "2026-09-24T12:00:00+00:00",
@@ -22,6 +24,7 @@ def _row() -> dict:
         "mailing_fallback_allowed": True,
         "document_receipt_status": "NOT_CONFIRMED",
         "document_received_at": None,
+        "estimated_next_step_at": None,
         "assigned_representative_name": None,
         "assigned_representative_contact": None,
         "record_version": 1,
@@ -68,6 +71,8 @@ async def test_lookup_and_claim_read_use_server_refs_and_safe_projection() -> No
         state.verify(CUSTOMER, CLAIM)
         projection = await repo.get_claim_status(state)
         assert projection["status"] == "Awaiting documents"
+        assert projection["claim_type"] == "AUTO_PHYSICAL_DAMAGE"
+        assert projection["loss_date"] == "2026-09-18"
         assert projection["required_documents"] == [
             "Repair estimate",
             "Two damage photographs",
@@ -94,6 +99,24 @@ async def test_malformed_claim_is_never_speech_ready() -> None:
         state.verify(CUSTOMER, CLAIM)
         with pytest.raises(PolicyError, match="VALIDATION_ERROR"):
             await repo.get_claim_status(state)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("claim_type", "AUTO_LIABILITY"),
+        ("loss_date", "2026-09-31"),
+        ("loss_date", "2026-09-25"),
+        ("estimated_next_step_at", "2026-09-30"),
+    ],
+)
+def test_claim_projection_rejects_untrusted_context(field: str, value: str) -> None:
+    from supabase_claims import claim_projection
+
+    row = _row()
+    row[field] = value
+    with pytest.raises(PolicyError, match="VALIDATION_ERROR"):
+        claim_projection(row)
 
 
 @pytest.mark.asyncio

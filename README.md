@@ -1,76 +1,83 @@
 # Claims Support Assistant
 
-Implementation workspace for the Observe.AI VoiceAI take-home assignment.
+I built this VoiceAI agent for the Observe.AI AI Agent Engineer take-home. It handles inbound calls for fictional Observe Insurance: a caller can ask general claims questions, check an existing synthetic claim after verification, or ask to speak with a person. At the end of the AI portion of the call, it records a sanitized interaction.
 
-## Current status
+My goal was a working, explainable system rather than a collection of impressive-looking components. One LiveKit agent handles the conversation; deterministic Python code owns verification, claim access, handoff state, and post-call delivery. The project uses synthetic data only and is not a production insurance service.
 
-The local agent has passed browser audio, a same-room supervisor takeover, and one inbound phone FAQ call. The phone call exercised consent, the live FAQ tool, caller disconnect, Supabase outbox delivery, and a matching Airtable record. The configured Supabase project has three synthetic customers, three claims, and the eleven-topic `faq-v1` snapshot. Deterministic server code guards verification and claim access.
+## What the caller can do
 
-This is a synthetic assessment build, not production-certified insurance software. The complete authenticated voice path and the other mandatory voice flows still need final rehearsal. The agent has not been deployed to LiveKit Cloud; the successful inbound call used a local worker. There is no automatic outbox retry worker, so a failed immediate Airtable delivery needs manual reconciliation before it can be called delivered.
+- Invited callers must receive the demo participation notice before joining or dialing. The short spoken greeting identifies the assistant as automated and invites the caller's request without a separate verbal consent turn.
+- Ask public questions about hours, mailing address, starting a claim, the general process, documents, and emergencies. Answers come from a versioned eleven-topic FAQ, not unrestricted model knowledge.
+- Check an existing claim. The account phone is a lookup key, not proof of identity. The agent confirms it, then confirms a claim ID and ZIP/postal code together before server code allows claim-specific information. At most three completed verification bundles are accepted per call.
+- Request a representative without explaining why or completing verification. A supervisor can join the same LiveKit room; the agent calls the handoff successful only after the expected participant actually joins.
 
-The approved direction is a Python LiveKit voice agent with deterministic server-owned authorization, Supabase/Postgres for synthetic customer and claim data, Airtable for sanitized post-call records, and a same-room browser supervisor handoff.
+The assistant does not file or adjudicate claims, interpret coverage, take payments, promise callbacks, or accept real personal information. Failed lookup and mismatched factors have the same caller-facing verification response.
 
-## Local context
+## How I built it
 
-The ignored `context bin/` directory contains the assignment PDF and the complete private design-authority package. It is intentionally excluded from Git because it includes internal planning, interview context, working evidence, and files that are not part of the public submission.
+| Responsibility | Implementation |
+| --- | --- |
+| Voice and room transport | LiveKit Agents with Deepgram Nova-3 STT, GPT-4.1 mini, and Cartesia Sonic-3 TTS through LiveKit Inference |
+| Conversation | One agent with a versioned prompt; tool calls pass through a testable workflow layer |
+| Authorization | Per-call server state, confirmed factors, attempt limits, and guarded claim reads; the LLM cannot mark a caller verified |
+| Customer, claims, and FAQ data | Synthetic Supabase/Postgres tables accessed only by server-side adapters |
+| Post-call record | A sanitized interaction is queued in a Supabase outbox before an immediate idempotent Airtable upsert |
+| Human handoff | A terminal watcher shows a minimal summary and a short-lived, room-scoped LiveKit Meet link; no custom WebRTC frontend |
 
-Future private planning notes, raw review artifacts, and context exports belong in `context bin/`. Reviewer-facing documentation that is intentionally part of the submission belongs in `docs/`.
-
-## Repository layout
-
-```text
-src/agent.py                LiveKit agent entrypoint
-src/prompt_v1.py            Versioned conversational instructions
-src/session_state.py        Per-call consent, authentication and access guards
-src/verification.py         Confirmed-factor verification and stale-read protection
-src/identifiers.py          Identifier normalization and HMAC lookup tokens
-src/postcall.py             Sanitized, idempotent AI-segment fallback record
-src/supabase_claims.py      Server-only lookup and guarded claim projection
-src/faq.py                  Pinned eleven-topic approved FAQ snapshot
-knowledge/faq_v1.json       Canonical public synthetic FAQ seed content
-src/voice_workflow.py       Testable conversation-to-domain boundary
-src/airtable_writer.py      Airtable upsert and uncertain-result reconciliation
-src/outbox.py               Durable queue and one immediate delivery attempt
-migrations/001_schema.sql   Synthetic Supabase schema and access restrictions
-scripts/seed_demo.py        Synthetic seed (private factors read from ignored context)
-scripts/join_supervisor.py  Trusted-terminal handoff summary and Meet link helper
-scripts/watch_handoffs.py  One-second terminal watcher; no custom web UI
-src/handoff.py              Sixty-second waiting request and room join state
-src/supervisor_broker.py    Short-lived, room-scoped supervisor token broker
-docs/integration_setup.md  Service setup and Airtable field types
-tests/                     Configuration and deterministic policy tests
-context bin/                Local-only design and project context; ignored by Git
+```mermaid
+flowchart LR
+    caller["Caller (phone or Agent Console)"] <--> room["LiveKit room"]
+    agent["Python voice agent"] <--> room
+    agent --> policy["Session entry, verification, guarded tools"]
+    policy --> data[(Supabase data)]
+    agent --> delivery["AI-segment completion"]
+    delivery -->|queue first| outbox[(Supabase outbox)]
+    delivery -->|then attempt upsert| airtable[(Airtable interactions)]
+    agent --> request[(Supabase handoff requests)]
+    request <--> watcher["Supervisor watcher"]
+    watcher --> meet["LiveKit Meet"]
+    meet <--> room
 ```
 
-New modules are added only when a working feature needs them. This keeps the reviewer-facing repository proportional to the implementation rather than advertising empty future architecture.
+The code follows those boundaries directly: [agent.py](src/agent.py) wires the voice session, [voice_workflow.py](src/voice_workflow.py) connects tools to policy, [session_state.py](src/session_state.py) and [verification.py](src/verification.py) guard access, and [supabase_claims.py](src/supabase_claims.py) returns only approved claim fields. [postcall.py](src/postcall.py), [outbox.py](src/outbox.py), and [airtable_writer.py](src/airtable_writer.py) handle completion. The active FAQ source is [faq_v2.json](knowledge/faq_v2.json); schema and setup details are in [migrations](migrations/) and [integration_setup.md](docs/integration_setup.md).
 
-The prompt controls conversation style and tool use, not authorization. Server code
-enforces consent, verification and claim access. The versioned FAQ JSON is the
-single source for seeding public answers into Supabase; each voice session loads
-and validates the pinned `faq-v1` snapshot from Supabase before taking calls.
-The JSON contains no customer or claim records. Changing approved FAQ content
-requires a new KB version and an explicit seed step; editing the file alone does
-not update the live project.
+I chose a small, pinned FAQ over a RAG system because these answers are finite and policy-sensitive. I keep unknown accounts and mismatched factors on the same caller-facing path to avoid revealing whether an account exists. I use LiveKit Meet for the supervisor's same-room join instead of maintaining a custom browser app.
 
-## Run locally
+I used an outbox because an Airtable timeout can leave delivery uncertain; the `Call ID` provides a logical idempotency key. The current implementation makes one immediate Airtable attempt and records failure state, but it does **not** run an automatic retry worker.
+
+## Run it locally
+
+You need Python 3.10–3.14, `uv`, a LiveKit Cloud project, and the synthetic Supabase and Airtable services described in [integration_setup.md](docs/integration_setup.md). Create `.env.local` from [.env.example](.env.example) only if it does not already exist, then fill in your own server-side credentials. Never commit that file. The private synthetic verification factors are intentionally not in this repository; I provide them separately to invited reviewers.
+
+From the repository root:
 
 ```powershell
 uv sync --locked
-lk agent debugger start src/agent.py
-lk agent debugger say "Hello"
-lk agent debugger stop
-```
-
-For a real browser-microphone session, run this in PowerShell and leave it open:
-
-```powershell
-cd 'D:\Dev\Projects\Claims Support Assistant'
 uv run python src/agent.py dev --log-level WARNING --no-reload
 ```
 
-Then open LiveKit Agent Console for the same project, connect, allow microphone access, and use **synthetic fixture values only**. The configured inbound phone number can also reach this local worker while it is running. Disconnect after the test, allow the shutdown write to finish, and press `Ctrl+C` in the PowerShell worker window. Check the newest `interaction_outbox` row in Supabase and the matching `Call ID` in Airtable. Local development uses automatic dispatch; the tracked `livekit.toml` declares the intended production agent name. Do not run a second worker concurrently or leave the worker running after testing.
+Before a participant joins Agent Console or dials the configured inbound number, show or send [the demo participant notice](docs/demo-participant-notice.md). Verify that the actual invitation or entry point includes it before retaining recordings or inviting outside testers; the notice file alone is not evidence of delivery. Leave the worker running, then connect through Agent Console in the same project and allow microphone access, or call the configured number. Use synthetic fixture values only. Disconnect after the call, allow post-call delivery to finish, and stop the worker with `Ctrl+C`. The LiveKit Cloud agent has not yet been deployed; the verified phone test used this local worker.
 
-Run the local quality gates before a commit or deployment:
+For a cheaper text-mode behavior check, use the LiveKit debugger instead of making a voice call:
+
+```powershell
+lk agent debugger start src/agent.py
+lk agent debugger say "How do I start a new claim?"
+lk agent debugger stop
+```
+
+## Demonstrate the required flows
+
+These are example **caller prompts**, not a memorized agent script; the agent's wording may vary. Replace bracketed values with synthetic fixture values supplied separately. Start a fresh call for each flow.
+
+1. **Happy path:** say “I'd like to check my claim. My account phone is [known phone].” Confirm the last four digits when asked. Give “[matching claim ID] and ZIP [matching ZIP],” confirm the readback, and ask about the status and any required documents. The answer should match the stored claim.
+2. **Authentication failure:** use a known phone, then a mismatched claim ID or ZIP. Confirm each complete bundle and retry up to three times. The agent must not disclose claim facts or identify which factor failed; it should offer human help after the limit.
+3. **Customer not found:** use a phone absent from the fixture set, then provide a claim ID and ZIP. The caller-facing verification path must be indistinguishable from a mismatch; only trusted server-side evidence may distinguish the causes.
+4. **Representative escalation:** start `uv run python scripts/watch_handoffs.py` in a second trusted terminal before the call. Say “I want to speak with a person. I don't want to explain why,” including as your first turn if you like. Read the terminal summary, open the Meet link, and join with a headset within 60 seconds. The agent should introduce the human and exit only after the validated room-join event.
+
+The supervisor link contains a credential. Do not paste it into chat, screenshots, logs, or public evidence. The watcher is a local, one-operator demo interface, not a production supervisor console. [join_supervisor.py](scripts/join_supervisor.py) is a one-shot fallback if the watcher is not running.
+
+## Verify the build
 
 ```powershell
 uv run ruff format --check .
@@ -78,37 +85,6 @@ uv run ruff check .
 uv run pytest -q
 ```
 
-## Supervisor handoff operator workflow
+The local suite covers state and authorization guards, identifier handling, Supabase claim projection, FAQ validation, Airtable/outbox behavior, and supervisor handoff. Live browser audio, a same-room human takeover, and an inbound phone FAQ call have also been observed with matching post-call records. The full authenticated voice path and all four mandatory flows still need final end-to-end rehearsal before I would call the submission demo-ready.
 
-Keep the voice worker running. In a second trusted PowerShell terminal, first
-run `uv run python scripts/watch_handoffs.py --check` to verify read access
-without issuing a token. Then run `uv run python scripts/watch_handoffs.py`
-before the call. The watcher reads unclaimed Supabase handoff state once per
-second. On a new waiting request, it sounds a terminal bell and prints the
-call ID, verified-only caller name, verification state, completed actions,
-room, remaining time, and a one-time LiveKit Meet link. It never opens a
-browser automatically. Read the summary and click the link promptly, allow
-microphone access, and use headphones to prevent audio feedback. Press `Ctrl+C`
-to stop the watcher after the test.
-
-The watcher claims at most one request at a time for this one-supervisor
-operator workflow. An additional simultaneous request is reported but not
-claimed while the first link is active. `uv run python scripts/join_supervisor.py`
-remains a one-shot fallback; with multiple unclaimed requests, select one with
-`--handoff-id ID`. The supervisor must join within the agent's 60-second wait;
-token issuance alone is not a successful handoff. The agent confirms the
-matching participant join, introduces the human, then leaves while the caller
-and supervisor remain. A real joined-room/audio-continuity test has passed;
-the matching post-call record was delivered to Airtable on the first attempt.
-
-Both helpers use the [official Meet custom-room route](https://github.com/livekit-examples/meet/blob/main/app/custom/page.tsx), which requires both the LiveKit URL and token. The terminal link contains a credential; do not paste it into logs, screenshots, chat, or public evidence. This is a trusted local operator adapter, not an authenticated production supervisor console. No custom web server or browser WebRTC code is maintained here.
-
-## Completed checkpoints
-
-- A human browser-microphone session proved two-way LiveKit audio on 27 September 2026. The local worker closed cleanly after the caller disconnected.
-- The selected STT identifier is `deepgram/nova-3`; the existing OpenAI and Cartesia identifiers remain configured. The claimed latency and recognition gains have not yet been measured in a comparable audio test.
-- Phase 1 tests cover consent, confirmation, the three-attempt cap, no-match privacy, forced claim-tool access, stale lookup responses, and deterministic completion content. The Supabase outbox enforces `call_id` uniqueness durably.
-- Phase 2 tests cover guarded Supabase reads, safe claim projection, a complete versioned FAQ snapshot, outbox-before-Airtable ordering, Airtable failure outcomes, reconciliation, and factor rejection from summaries. The migration and synthetic fixtures are applied in the configured Supabase project; one synthetic write reached Airtable.
-- Phase 3 text-mode checks proved the deterministic opening, explicit consent tool, and live FAQ answer. Unit tests cover a full verified claim-tool path and generic unknown-customer failure. A browser FAQ call and an interrupted call each created one delivered outbox row and matching Airtable row. The authenticated browser call, failure/no-match dialogue, voice review, and verification-factor redaction review remain required.
-- Supervisor handoff passed a live same-room join and human takeover. The 60-second request window, participant validation, agent exit, and first-attempt Airtable delivery were observed. The AI-segment completion now starts after the introduction rather than waiting for the human room to end; a live retest created its outbox row about 5.5 seconds after supervisor connection. This does not establish automatic retry or production supervisor authorization.
-- Inbound telephony passed one local-worker FAQ call with consent and caller-initiated disconnect. The matching Airtable record was independently read. This does not establish Cloud deployment or every required phone flow.
+This is a synthetic assessment build, not a claim of regulatory compliance or production identity assurance. It has no outbound PSTN transfer, real claimant data, automatic outbox retry process, or production supervisor access control. Those are deliberate boundaries rather than features implied by the demo.
