@@ -23,14 +23,19 @@ def test_voice_configuration_is_explicit() -> None:
     assert LLM_MODEL_ID == "openai/gpt-4.1-mini"
     assert TTS_MODEL_ID == "cartesia/sonic-3"
     assert TTS_VOICE_ID
-    assert PROMPT_VERSION == "prompt-v1"
-    assert "Would you like to continue?" in OPENING
-    assert "Only get_claim_status can supply claim facts." in INSTRUCTIONS
+    assert PROMPT_VERSION == "prompt-v2"
+    assert "How can I help?" in OPENING
+    assert "automated claims assistant" in OPENING
+    assert "may be recorded" in OPENING
+    assert "Would you like to continue?" not in OPENING
+    assert "only get_claim_status supplies claim facts" in INSTRUCTIONS
+    assert "please say yes or no" in INSTRUCTIONS.lower()
+    assert "Do not ask for a reason or require verification" in INSTRUCTIONS
 
 
 def test_claims_assistant_has_guarded_tools() -> None:
     assert hasattr(ClaimsAssistant, "get_claim_status")
-    assert hasattr(ClaimsAssistant, "set_consent")
+    assert not hasattr(ClaimsAssistant, "set_consent")
 
 
 @pytest.mark.asyncio

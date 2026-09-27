@@ -8,6 +8,7 @@ from uuid import uuid4
 import httpx
 import pytest
 
+from errors import PolicyError
 from handoff import (
     HANDOFF_WAIT_SECONDS,
     HandoffRequest,
@@ -39,6 +40,15 @@ def test_unverified_handoff_summary_has_only_minimum_context() -> None:
     assert "Unverified Name" not in str(summary)
 
 
+def test_handoff_reason_is_optional_bounded_context() -> None:
+    state = SessionState(room_name="opaque-room")
+    assert minimum_handoff_summary(state, (), None)["caller_requested_reason"] is None
+    summary = minimum_handoff_summary(state, (), None, "documents")
+    assert summary["caller_requested_reason"] == "documents"
+    with pytest.raises(PolicyError, match="INVALID_INPUT"):
+        minimum_handoff_summary(state, (), None, "raw caller narrative")
+
+
 @pytest.mark.asyncio
 async def test_handoff_rejects_wrong_room_role_and_identity_then_connects() -> None:
     handoff_id = str(uuid4())
@@ -47,8 +57,9 @@ async def test_handoff_rejects_wrong_room_role_and_identity_then_connects() -> N
         def __init__(self):
             self.connected = []
 
-        async def create_waiting(self, state, events, caller_name):
+        async def create_waiting(self, state, events, caller_name, reason_category):
             assert TrustedEvent.HANDOFF_REQUESTED in events
+            assert reason_category is None
             return HandoffRequest(
                 handoff_id,
                 state.room_name,
@@ -65,8 +76,8 @@ async def test_handoff_rejects_wrong_room_role_and_identity_then_connects() -> N
     workflow = _workflow()
     handoffs = FakeHandoffs()
     workflow.handoffs = handoffs
-    workflow.caller_turn_committed("yes")
-    workflow.set_consent(True)
+    workflow.state.accept_consent()
+    workflow.caller_turn_committed("I want to talk to a representative")
     assert (await workflow.request_representative())["status"] == "waiting"
     assert workflow.state.handoff == Handoff.WAITING
     valid_attrs = {"role": "supervisor", "handoff_id": handoff_id}
@@ -93,7 +104,7 @@ async def test_handoff_rejects_wrong_room_role_and_identity_then_connects() -> N
 @pytest.mark.asyncio
 async def test_handoff_timeout_never_claims_connection() -> None:
     class FakeHandoffs:
-        async def create_waiting(self, state, events, caller_name):
+        async def create_waiting(self, state, events, caller_name, reason_category):
             return HandoffRequest(
                 str(uuid4()),
                 state.room_name,
@@ -105,13 +116,32 @@ async def test_handoff_timeout_never_claims_connection() -> None:
 
     workflow = _workflow()
     workflow.handoffs = FakeHandoffs()
-    workflow.caller_turn_committed("yes")
-    workflow.set_consent(True)
+    workflow.state.accept_consent()
+    workflow.caller_turn_committed("I want a person")
     result = await workflow.request_representative()
     assert await workflow.expire_handoff(result["handoff_id"])
     assert workflow.state.handoff == Handoff.FAILED
     assert TrustedEvent.HANDOFF_UNAVAILABLE in workflow.events
     assert TrustedEvent.HANDOFF_CONNECTED not in workflow.events
+
+
+@pytest.mark.asyncio
+async def test_unsupported_reason_never_blocks_requested_handoff() -> None:
+    class FakeHandoffs:
+        async def create_waiting(self, state, events, caller_name, reason_category):
+            assert reason_category is None
+            return HandoffRequest(
+                str(uuid4()),
+                state.room_name,
+                datetime.now(timezone.utc) + timedelta(seconds=15),
+            )
+
+    workflow = _workflow()
+    workflow.handoffs = FakeHandoffs()
+    workflow.state.accept_consent()
+    workflow.caller_turn_committed("I want a representative")
+    result = await workflow.request_representative("raw caller narrative")
+    assert result["status"] == "waiting"
 
 
 @pytest.mark.asyncio
@@ -122,6 +152,7 @@ async def test_handoff_repository_creates_sanitized_waiting_row() -> None:
         assert row["state"] == "WAITING"
         assert row["expected_role"] == "supervisor"
         assert row["summary_json"]["caller_name"] == "unknown/unverified"
+        assert row["summary_json"]["caller_requested_reason"] == "documents"
         return httpx.Response(201, json=[{"handoff_id": row["handoff_id"]}])
 
     state = SessionState(room_name="opaque-room")
@@ -129,7 +160,7 @@ async def test_handoff_repository_creates_sanitized_waiting_row() -> None:
         repo = SupabaseHandoffRepository(
             "https://example.supabase.co", "sb_secret_test", client
         )
-        request = await repo.create_waiting(state, (), None)
+        request = await repo.create_waiting(state, (), None, "documents")
     assert request.room_name == "opaque-room"
     remaining = (request.expires_at_utc - datetime.now(timezone.utc)).total_seconds()
     assert HANDOFF_WAIT_SECONDS - 5 <= remaining <= HANDOFF_WAIT_SECONDS

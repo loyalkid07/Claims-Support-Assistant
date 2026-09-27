@@ -54,17 +54,14 @@ def _workflow() -> VoiceWorkflow:
     )
 
 
-def test_consent_requires_trusted_caller_answer() -> None:
+def test_public_faq_needs_no_verification_or_verbal_continuation() -> None:
     workflow = _workflow()
-    with pytest.raises(PolicyError, match="CONSENT_NOT_CONFIRMED"):
-        workflow.set_consent(True)
     with pytest.raises(PolicyError, match="CONSENT_REQUIRED"):
         workflow.prepare_phone("415 555 0142")
-    assert workflow.get_faq("office_hours")["status"] == "continuation_required"
-    assert workflow.get_faq("emergency")["status"] == "found"
-    workflow.caller_turn_committed("Yes, I would like to continue")
-    assert workflow.set_consent(True)["status"] == "ready"
     assert workflow.get_faq("office_hours")["status"] == "found"
+    assert workflow.get_faq("emergency")["status"] == "found"
+    workflow.state.accept_consent()  # Session entry completed; no caller yes turn.
+    assert workflow.prepare_phone("415 555 0142")["status"] == "confirm_phone"
     assert TrustedEvent.FAQ_ANSWERED in workflow.events
 
 
@@ -83,8 +80,7 @@ def test_sentiment_cues_use_caller_turns_without_retaining_text() -> None:
 @pytest.mark.asyncio
 async def test_claim_tool_requires_separate_confirmed_turns() -> None:
     workflow = _workflow()
-    workflow.caller_turn_committed("yes")
-    workflow.set_consent(True)
+    workflow.state.accept_consent()
     with pytest.raises(PolicyError, match="UNAUTHENTICATED"):
         await workflow.get_claim_status()
     assert workflow.prepare_phone("my number is 415 555 0142") == {
@@ -106,10 +102,19 @@ async def test_claim_tool_requires_separate_confirmed_turns() -> None:
 
 
 @pytest.mark.asyncio
+async def test_natural_readback_correction_is_not_a_verification_attempt() -> None:
+    workflow = _workflow()
+    workflow.state.accept_consent()
+    workflow.prepare_phone("415 555 0142")
+    workflow.caller_turn_committed("Not quite, I meant a different number")
+    assert (await workflow.confirm_phone(False))["status"] == "correction_needed"
+    assert workflow.state.attempts_used == 0
+
+
+@pytest.mark.asyncio
 async def test_unknown_phone_follows_generic_failure_path() -> None:
     workflow = _workflow()
-    workflow.caller_turn_committed("yes")
-    workflow.set_consent(True)
+    workflow.state.accept_consent()
     workflow.prepare_phone("4155550199")
     workflow.caller_turn_committed("yes")
     assert (await workflow.confirm_phone(True))["status"] == "continue_verification"
@@ -117,6 +122,7 @@ async def test_unknown_phone_follows_generic_failure_path() -> None:
     workflow.caller_turn_committed("yes")
     result = await workflow.confirm_bundle(True)
     assert result["status"] == "retry"
-    assert "couldn't verify the information" in result["spoken_message"]
+    assert "could not verify an account" in result["spoken_message"]
+    assert "recheck the phone number" in result["spoken_message"]
     assert workflow.state.auth != Auth.VERIFIED
     assert TrustedEvent.VERIFICATION_FAILED in workflow.events

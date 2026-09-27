@@ -5,9 +5,13 @@ from contextlib import suppress
 
 from errors import PolicyError
 from faq import FaqSnapshot
-from handoff import HANDOFF_WAIT_SECONDS, SupabaseHandoffRepository
+from handoff import (
+    HANDOFF_REASON_CATEGORIES,
+    HANDOFF_WAIT_SECONDS,
+    SupabaseHandoffRepository,
+)
 from postcall import CallerCue, TrustedEvent
-from session_state import Auth, Consent, Handoff, Route, SessionState
+from session_state import Auth, Handoff, Route, SessionState
 from supabase_claims import SupabaseClaimsRepository
 from verification import IdentityVerifier
 
@@ -29,7 +33,6 @@ class VoiceWorkflow:
         self.events: list[TrustedEvent] = []
         self.caller_cues: set[CallerCue] = set()
         self.tool_error_count = 0
-        self._consent_signal: bool | None = None
         self._confirmation_signal: bool | None = None
 
     def caller_turn_committed(self, text: str) -> None:
@@ -51,32 +54,18 @@ class VoiceWorkflow:
         if len(normalized.split()) >= 3:
             self.caller_cues.add(CallerCue.INFORMATIONAL)
         if re.match(
-            r"^(yes|yeah|yep|sure|okay|ok|correct|that's right|that is right)\b",
+            r"^(yes|yeah|yep|sure|okay|ok|correct|right|exactly|"
+            r"that's right|that is right|that's correct|that is correct)\b",
             normalized,
         ):
             self._confirmation_signal = True
-        elif re.match(r"^(no|nope|incorrect|that's wrong|that is wrong)\b", normalized):
+        elif re.match(
+            r"^(no|nope|incorrect|not quite|that's wrong|that is wrong)\b",
+            normalized,
+        ):
             self._confirmation_signal = False
         else:
             self._confirmation_signal = None
-        if self.state.consent == Consent.PENDING:
-            if re.match(r"^(yes|yeah|yep|sure|okay|ok|i agree|go ahead)\b", normalized):
-                self._consent_signal = True
-            elif re.match(r"^(no|nope|i do not|i don't)\b", normalized):
-                self._consent_signal = False
-            else:
-                self._consent_signal = None
-
-    def set_consent(self, accepted: bool) -> dict:
-        if accepted is not self._consent_signal:
-            raise PolicyError("CONSENT_NOT_CONFIRMED")
-        self._consent_signal = None
-        self._confirmation_signal = None
-        if accepted:
-            self.state.accept_consent()
-            return {"status": "ready", "next_step": "ask_how_to_help"}
-        self.state.decline_consent()
-        return {"status": "declined", "next_step": "close_politely"}
 
     def prepare_phone(self, spoken: str) -> dict:
         self.state.require_identifier_access()
@@ -106,8 +95,9 @@ class VoiceWorkflow:
         if result["status"] in {"retry", "locked"}:
             self.events.append(TrustedEvent.VERIFICATION_FAILED)
             result["spoken_message"] = (
-                "I couldn't verify the information provided. You can try the claim ID "
-                "and ZIP code again, or I can connect you with a representative."
+                "I could not verify an account with the information provided. "
+                "We can recheck the phone number, claim number, and ZIP, or I can "
+                "connect you with a representative."
                 if result["status"] == "retry"
                 else "I could not verify an account with the information provided. "
                 "I can try to connect you with a representative if you'd like."
@@ -120,18 +110,16 @@ class VoiceWorkflow:
         return result
 
     def get_faq(self, topic_id: str) -> dict:
-        if self.state.consent != Consent.ACCEPTED and topic_id != "emergency":
-            return {"status": "continuation_required"}
         result = self.faq.get_faq(topic_id)
         if result["status"] == "found":
             self.events.append(TrustedEvent.FAQ_ANSWERED)
         return result
 
-    async def request_representative(self) -> dict:
+    async def request_representative(self, reason_category: str | None = None) -> dict:
         """Start an expiring handoff without requiring identity or a reason."""
 
-        if self.state.consent != Consent.ACCEPTED:
-            return {"status": "continuation_required"}
+        if reason_category not in HANDOFF_REASON_CATEGORIES:
+            reason_category = None
         self.state.request_handoff()
         self.events.append(TrustedEvent.HANDOFF_REQUESTED)
         if self.handoffs is None:
@@ -142,7 +130,7 @@ class VoiceWorkflow:
                 caller_name = await self.claims.get_verified_caller_name(self.state)
         try:
             request = await self.handoffs.create_waiting(
-                self.state, tuple(self.events), caller_name
+                self.state, tuple(self.events), caller_name, reason_category
             )
         except PolicyError:
             return self._handoff_unavailable()

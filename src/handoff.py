@@ -12,6 +12,9 @@ from postcall import TrustedEvent
 from session_state import Auth, SessionState
 
 HANDOFF_WAIT_SECONDS = 60
+HANDOFF_REASON_CATEGORIES = frozenset(
+    {"claim_status", "documents", "new_claim", "complaint", "general_question"}
+)
 
 
 @dataclass(frozen=True)
@@ -22,9 +25,15 @@ class HandoffRequest:
 
 
 def minimum_handoff_summary(
-    state: SessionState, events: tuple[TrustedEvent, ...], caller_name: str | None
+    state: SessionState,
+    events: tuple[TrustedEvent, ...],
+    caller_name: str | None,
+    reason_category: str | None = None,
 ) -> dict:
-    """Send only bounded, trusted AI-segment facts to an authorized supervisor."""
+    """Send only bounded AI-segment facts to an authorized supervisor."""
+
+    if reason_category is not None and reason_category not in HANDOFF_REASON_CATEGORIES:
+        raise PolicyError("INVALID_INPUT")
 
     observed = set(events)
     actions = []
@@ -48,7 +57,7 @@ def minimum_handoff_summary(
             if state.auth == Auth.VERIFIED and caller_name
             else "unknown/unverified"
         ),
-        "caller_requested_reason": None,
+        "caller_requested_reason": reason_category,
         "completed_actions": actions,
         "open_need": "caller requested a representative",
         "safety_flag": "NONE",
@@ -80,6 +89,7 @@ class SupabaseHandoffRepository:
         state: SessionState,
         events: tuple[TrustedEvent, ...],
         caller_name: str | None,
+        reason_category: str | None = None,
     ) -> HandoffRequest:
         handoff_id = str(uuid4())
         expires = datetime.now(timezone.utc) + timedelta(seconds=HANDOFF_WAIT_SECONDS)
@@ -88,7 +98,9 @@ class SupabaseHandoffRepository:
             "call_id": state.call_id,
             "room_name": state.room_name,
             "state": "WAITING",
-            "summary_json": minimum_handoff_summary(state, events, caller_name),
+            "summary_json": minimum_handoff_summary(
+                state, events, caller_name, reason_category
+            ),
             "expected_role": "supervisor",
             "expires_at": expires.isoformat(),
         }

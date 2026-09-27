@@ -27,7 +27,7 @@ from errors import PolicyError
 from handoff import HANDOFF_WAIT_SECONDS, SupabaseHandoffRepository
 from outbox import InteractionDelivery, SupabaseOutbox
 from postcall import CompletionOnce, CompletionRunner, TrustedEvent
-from prompt_v1 import INSTRUCTIONS, PROMPT_VERSION
+from prompt_v2 import INSTRUCTIONS, PROMPT_VERSION
 from session_state import Handoff, SessionState
 from supabase_claims import SupabaseClaimsRepository
 from verification import IdentityVerifier
@@ -46,11 +46,10 @@ WORKFLOW_VERSION = "workflow-v1"
 MODEL_STACK_VERSION = f"{STT_MODEL_ID}|{LLM_MODEL_ID}|{TTS_MODEL_ID}|{TTS_VOICE_ID}"
 
 OPENING = (
-    "Thank you for calling Observe Insurance. I'm the automated claims assistant. "
-    "This is a demonstration using synthetic accounts, and the call may be "
-    "recorded and transcribed for testing and quality. Please do not share real "
-    "personal information. I can help with an existing test claim, explain our "
-    "claims process, or connect you with a representative. Would you like to continue?"
+    "Thanks for calling Observe Insurance. I'm the automated claims assistant. "
+    "This test call may be recorded, so please use test details. I can check "
+    "a claim, explain next steps, answer general questions, or connect you "
+    "with a representative. How can I help?"
 )
 
 HANDOFF_INTRO = (
@@ -72,8 +71,7 @@ async def finish_handoff_segment(
 def _safe_tool_error(workflow: VoiceWorkflow, exc: PolicyError) -> dict[str, str]:
     workflow.tool_error_count += 1
     status = {
-        "CONSENT_REQUIRED": "continuation_required",
-        "CONSENT_NOT_CONFIRMED": "consent_not_confirmed",
+        "CONSENT_REQUIRED": "entry_not_ready",
         "CONFIRMATION_REQUIRED": "later_caller_confirmation_required",
         "CONFIRMATION_NOT_CONFIRMED": "later_caller_confirmation_required",
         "CANDIDATE_REQUIRED": "phone_confirmation_required",
@@ -98,15 +96,6 @@ class ClaimsAssistant(Agent):
         )
         self.workflow = workflow
         self._on_handoff_waiting = on_handoff_waiting
-
-    @function_tool()
-    async def set_consent(self, context: RunContext, accepted: bool) -> dict:
-        """Record the caller's explicit continuation answer after the opening notice."""
-
-        try:
-            return self.workflow.set_consent(accepted)
-        except PolicyError as exc:
-            return _safe_tool_error(self.workflow, exc)
 
     @function_tool()
     async def prepare_phone(self, context: RunContext, spoken: str) -> dict:
@@ -162,11 +151,17 @@ class ClaimsAssistant(Agent):
         return self.workflow.get_faq(topic_id)
 
     @function_tool()
-    async def request_representative(self, context: RunContext) -> dict:
-        """Handle a human request without requiring verification or a reason."""
+    async def request_representative(
+        self, context: RunContext, reason_category: str | None = None
+    ) -> dict:
+        """Request a human; optional stated-reason category only.
+
+        Valid categories: claim_status, documents, new_claim, complaint,
+        general_question. Omit the value if the caller gave no clear reason.
+        """
 
         try:
-            result = await self.workflow.request_representative()
+            result = await self.workflow.request_representative(reason_category)
             if result["status"] == "waiting" and self._on_handoff_waiting:
                 self._on_handoff_waiting(result["handoff_id"])
             return result
@@ -357,6 +352,9 @@ async def claims_support_agent(ctx: JobContext) -> None:
     )
     await ctx.connect()
     session.say(OPENING)
+    # The caller joined the invited test entry and the spoken notice has begun.
+    # This legacy state flag enables tools without a separate verbal yes turn.
+    state.accept_consent()
 
 
 if __name__ == "__main__":
