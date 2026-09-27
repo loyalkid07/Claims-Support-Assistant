@@ -38,6 +38,7 @@ logger = logging.getLogger("claims-support-assistant")
 load_dotenv(".env.local")
 
 AGENT_NAME = "claims-support-assistant"
+PERSONA_NAME = "Orla"
 STT_MODEL_ID = "deepgram/nova-3"
 LLM_MODEL_ID = "openai/gpt-4.1-mini"
 TTS_MODEL_ID = "cartesia/sonic-3"
@@ -46,10 +47,9 @@ WORKFLOW_VERSION = "workflow-v1"
 MODEL_STACK_VERSION = f"{STT_MODEL_ID}|{LLM_MODEL_ID}|{TTS_MODEL_ID}|{TTS_VOICE_ID}"
 
 OPENING = (
-    "Thanks for calling Observe Insurance. I'm the automated claims assistant. "
-    "This test call may be recorded, so please use test details. I can check "
-    "a claim, explain next steps, answer general questions, or connect you "
-    "with a representative. How can I help?"
+    f"Thanks for calling Observe Insurance. I'm {PERSONA_NAME}, your automated "
+    "claims assistant. I can check on a claim, talk through next steps, or "
+    "help you reach a representative. How can I help today?"
 )
 
 HANDOFF_INTRO = (

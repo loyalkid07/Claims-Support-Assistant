@@ -8,7 +8,7 @@ Show or send this notice to invited testers before they join the browser demo or
 > share real personal, payment, or medical information. You may ask for a
 > representative at any point.
 
-The agent also gives a short spoken notice at the start of each call. This
-document is the invitation copy; its existence alone does not prove that a
-tester saw it. Capture the actual invitation or browser entry as evidence
-before retaining recordings or inviting outside participants.
+The spoken greeting identifies the automated assistant. This document is the
+invitation copy; its existence alone does not prove that a tester saw it.
+Capture the actual invitation or browser entry as evidence before retaining
+recordings or inviting outside participants.

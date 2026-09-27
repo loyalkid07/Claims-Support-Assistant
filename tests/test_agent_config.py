@@ -6,6 +6,7 @@ from agent import (
     INSTRUCTIONS,
     LLM_MODEL_ID,
     OPENING,
+    PERSONA_NAME,
     PROMPT_VERSION,
     STT_MODEL_ID,
     TTS_MODEL_ID,
@@ -24,9 +25,11 @@ def test_voice_configuration_is_explicit() -> None:
     assert TTS_MODEL_ID == "cartesia/sonic-3"
     assert TTS_VOICE_ID
     assert PROMPT_VERSION == "prompt-v2"
-    assert "How can I help?" in OPENING
-    assert "automated claims assistant" in OPENING
-    assert "may be recorded" in OPENING
+    assert PERSONA_NAME == "Orla"
+    assert f"I'm {PERSONA_NAME}, your automated claims assistant" in OPENING
+    assert "How can I help today?" in OPENING
+    assert "may be recorded" not in OPENING
+    assert "test details" not in OPENING
     assert "Would you like to continue?" not in OPENING
     assert "only get_claim_status supplies claim facts" in INSTRUCTIONS
     assert "please say yes or no" in INSTRUCTIONS.lower()
