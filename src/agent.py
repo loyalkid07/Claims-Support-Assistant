@@ -38,7 +38,7 @@ logger = logging.getLogger("claims-support-assistant")
 load_dotenv(".env.local")
 
 AGENT_NAME = "claims-support-assistant"
-PERSONA_NAME = "Orla"
+PERSONA_NAME = "Lucia"
 STT_MODEL_ID = "deepgram/nova-3"
 LLM_MODEL_ID = "openai/gpt-4.1-mini"
 TTS_MODEL_ID = "cartesia/sonic-3"

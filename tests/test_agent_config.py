@@ -25,7 +25,7 @@ def test_voice_configuration_is_explicit() -> None:
     assert TTS_MODEL_ID == "cartesia/sonic-3"
     assert TTS_VOICE_ID
     assert PROMPT_VERSION == "prompt-v2"
-    assert PERSONA_NAME == "Orla"
+    assert PERSONA_NAME == "Lucia"
     assert f"I'm {PERSONA_NAME}, your automated claims assistant" in OPENING
     assert "How can I help today?" in OPENING
     assert "may be recorded" not in OPENING
