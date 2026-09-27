@@ -17,6 +17,39 @@ from supabase_claims import SupabaseClaimsRepository
 from verification import IdentityVerifier
 
 
+def _classify_confirmation(text: str) -> bool | None:
+    """Accept clear readback answers; leave uncertain speech for clarification."""
+
+    normalized = text.lower().replace("\u2019", "'").replace("'", "")
+    normalized = re.sub(r"\buh[\s-]+huh\b", "uhhuh", normalized)
+    normalized = re.sub(r"\b(?:mm|m)[\s-]+hmm\b", "mmhmm", normalized)
+    normalized = re.sub(r"[^\w\s?]", " ", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    normalized = re.sub(r"^(?:(?:um|uh|erm|well|ah) )+", "", normalized)
+    if not normalized or normalized.endswith("?"):
+        return None
+    if re.search(
+        r"\b(?:not sure|maybe|probably|i think|i guess|dont know)\b", normalized
+    ):
+        return None
+    if re.search(
+        r"\b(?:no|nope|nah|incorrect|wrong|not|isnt|arent)\b",
+        normalized,
+    ):
+        return False
+    if re.search(r"\b(?:but|actually|instead|meant|should be|change)\b", normalized):
+        return None
+    if re.match(
+        r"^(?:yes|yeah|yep|yup|sure|okay|ok|correct|right|exactly|"
+        r"uhhuh|mmhmm|mhm|you got it|thats right|that is right|"
+        r"thats correct|that is correct|those are correct|thats my number|"
+        r"thats me)\b",
+        normalized,
+    ):
+        return True
+    return None
+
+
 class VoiceWorkflow:
     def __init__(
         self,
@@ -54,19 +87,7 @@ class VoiceWorkflow:
             self.caller_cues.add(CallerCue.SATISFIED)
         if len(normalized.split()) >= 3:
             self.caller_cues.add(CallerCue.INFORMATIONAL)
-        if re.match(
-            r"^(yes|yeah|yep|sure|okay|ok|correct|right|exactly|"
-            r"that's right|that is right|that's correct|that is correct)\b",
-            normalized,
-        ):
-            self._confirmation_signal = True
-        elif re.match(
-            r"^(no|nope|incorrect|not quite|that's wrong|that is wrong)\b",
-            normalized,
-        ):
-            self._confirmation_signal = False
-        else:
-            self._confirmation_signal = None
+        self._confirmation_signal = _classify_confirmation(text)
         bundle = extract_labeled_bundle(text)
         if bundle is not None:
             with suppress(PolicyError):
@@ -79,9 +100,10 @@ class VoiceWorkflow:
         self._confirmation_signal = None
         return {"status": "confirm_phone", "last_four": last_four}
 
-    async def confirm_phone(self, confirmed: bool) -> dict:
-        if confirmed is not self._confirmation_signal:
-            raise PolicyError("CONFIRMATION_NOT_CONFIRMED")
+    async def confirm_phone(self) -> dict:
+        confirmed = self._confirmation_signal
+        if confirmed is None:
+            return {"status": "clarification_needed"}
         self._confirmation_signal = None
         return await self.verifier.confirm_phone(confirmed=confirmed)
 
@@ -91,9 +113,10 @@ class VoiceWorkflow:
         self.verifier.prepare_bundle(claim_id_spoken, postal_spoken)
         return {"status": "confirm_bundle"}
 
-    async def confirm_bundle(self, confirmed: bool) -> dict:
-        if confirmed is not self._confirmation_signal:
-            raise PolicyError("CONFIRMATION_NOT_CONFIRMED")
+    async def confirm_bundle(self) -> dict:
+        confirmed = self._confirmation_signal
+        if confirmed is None:
+            return {"status": "clarification_needed"}
         self._confirmation_signal = None
         result = await self.verifier.confirm_bundle(confirmed=confirmed)
         if result["status"] in {"retry", "locked"}:

@@ -44,7 +44,7 @@ STT_MODEL_ID = "deepgram/nova-3"
 LLM_MODEL_ID = "openai/gpt-4.1-mini"
 TTS_MODEL_ID = "cartesia/sonic-3"
 TTS_VOICE_ID = "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"
-WORKFLOW_VERSION = "workflow-v1"
+WORKFLOW_VERSION = "workflow-v2"
 MODEL_STACK_VERSION = f"{STT_MODEL_ID}|{LLM_MODEL_ID}|{TTS_MODEL_ID}|{TTS_VOICE_ID}"
 
 OPENING = (
@@ -74,7 +74,6 @@ def _safe_tool_error(workflow: VoiceWorkflow, exc: PolicyError) -> dict[str, str
     status = {
         "CONSENT_REQUIRED": "entry_not_ready",
         "CONFIRMATION_REQUIRED": "later_caller_confirmation_required",
-        "CONFIRMATION_NOT_CONFIRMED": "later_caller_confirmation_required",
         "CANDIDATE_REQUIRED": "phone_confirmation_required",
         "UNAUTHENTICATED": "verification_required",
         "AUTH_LOCKED": "verification_locked",
@@ -110,11 +109,11 @@ class ClaimsAssistant(Agent):
             return _safe_tool_error(self.workflow, exc)
 
     @function_tool()
-    async def confirm_phone(self, context: RunContext, confirmed: bool) -> dict:
-        """Submit phone lookup only after a separate caller confirmation turn."""
+    async def confirm_phone(self, context: RunContext) -> dict:
+        """Process the caller's latest answer to the phone last-four readback."""
 
         try:
-            return await self.workflow.confirm_phone(confirmed)
+            return await self.workflow.confirm_phone()
         except PolicyError as exc:
             return _safe_tool_error(self.workflow, exc)
 
@@ -133,11 +132,11 @@ class ClaimsAssistant(Agent):
             return _safe_tool_error(self.workflow, exc)
 
     @function_tool()
-    async def confirm_bundle(self, context: RunContext, confirmed: bool) -> dict:
-        """Submit the complete confirmed bundle; only this can use an attempt."""
+    async def confirm_bundle(self, context: RunContext) -> dict:
+        """Process the caller's answer to the claim and ZIP readback."""
 
         try:
-            return await self.workflow.confirm_bundle(confirmed)
+            return await self.workflow.confirm_bundle()
         except PolicyError as exc:
             return _safe_tool_error(self.workflow, exc)
 

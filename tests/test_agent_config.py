@@ -11,6 +11,7 @@ from agent import (
     STT_MODEL_ID,
     TTS_MODEL_ID,
     TTS_VOICE_ID,
+    WORKFLOW_VERSION,
     ClaimsAssistant,
     finish_handoff_segment,
 )
@@ -25,6 +26,7 @@ def test_voice_configuration_is_explicit() -> None:
     assert TTS_MODEL_ID == "cartesia/sonic-3"
     assert TTS_VOICE_ID
     assert PROMPT_VERSION == "prompt-v2"
+    assert WORKFLOW_VERSION == "workflow-v2"
     assert PERSONA_NAME == "Lucia"
     assert f"I'm {PERSONA_NAME}, your automated claims assistant" in OPENING
     assert f"You are {PERSONA_NAME}," in INSTRUCTIONS

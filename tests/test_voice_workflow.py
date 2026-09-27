@@ -6,7 +6,7 @@ from identifiers import lookup_token
 from postcall import CallerCue, TrustedEvent, caller_sentiment
 from session_state import Auth, SessionState
 from verification import CustomerCandidate, IdentityVerifier
-from voice_workflow import VoiceWorkflow
+from voice_workflow import VoiceWorkflow, _classify_confirmation
 
 SECRET = b"s" * 32
 CUSTOMER = "11111111-1111-4111-8111-111111111111"
@@ -79,6 +79,33 @@ def test_sentiment_cues_use_caller_turns_without_retaining_text() -> None:
     assert "frustrated by the delay" not in str(workflow.caller_cues)
 
 
+@pytest.mark.parametrize(
+    ("spoken", "expected"),
+    [
+        ("Yes, that's right", True),
+        ("Thats right", True),
+        ("Um, yes, that's right", True),
+        ("Uh-huh, that's my number", True),
+        ("That's me", True),
+        ("mm-hmm", True),
+        ("You got it", True),
+        ("No, that's wrong", False),
+        ("Not quite, I meant a different number", False),
+        ("Yes, but the ZIP is wrong", False),
+        ("No, yes, wait", False),
+        ("Yes, but the ZIP is 10001", None),
+        ("Sounds good", None),
+        ("I think so", None),
+        ("That's right?", None),
+        ("I need the claim status", None),
+    ],
+)
+def test_confirmation_classifier_is_conservative(
+    spoken: str, expected: bool | None
+) -> None:
+    assert _classify_confirmation(spoken) is expected
+
+
 @pytest.mark.asyncio
 async def test_claim_tool_requires_separate_confirmed_turns() -> None:
     workflow = _workflow()
@@ -89,15 +116,13 @@ async def test_claim_tool_requires_separate_confirmed_turns() -> None:
         "status": "confirm_phone",
         "last_four": "0142",
     }
-    with pytest.raises(PolicyError, match="CONFIRMATION_NOT_CONFIRMED"):
-        await workflow.confirm_phone(True)
+    assert await workflow.confirm_phone() == {"status": "clarification_needed"}
     workflow.caller_turn_committed("Yes, that's right")
-    assert (await workflow.confirm_phone(True))["status"] == "continue_verification"
+    assert (await workflow.confirm_phone())["status"] == "continue_verification"
     workflow.prepare_bundle("claim 482731", "94105")
-    with pytest.raises(PolicyError, match="CONFIRMATION_NOT_CONFIRMED"):
-        await workflow.confirm_bundle(True)
+    assert await workflow.confirm_bundle() == {"status": "clarification_needed"}
     workflow.caller_turn_committed("correct")
-    assert (await workflow.confirm_bundle(True))["status"] == "verified"
+    assert (await workflow.confirm_bundle())["status"] == "verified"
     assert workflow.state.auth == Auth.VERIFIED
     assert (await workflow.get_claim_status())["status"] == "Awaiting documents"
     assert TrustedEvent.CLAIM_STATUS_PROVIDED in workflow.events
@@ -111,9 +136,9 @@ async def test_labeled_claim_and_zip_are_captured_before_phone() -> None:
     workflow.caller_turn_committed("415 555 0142")
     workflow.prepare_phone("415 555 0142")
     workflow.caller_turn_committed("yes")
-    assert (await workflow.confirm_phone(True))["status"] == "continue_verification"
+    assert (await workflow.confirm_phone())["status"] == "continue_verification"
     workflow.caller_turn_committed("yes")
-    assert (await workflow.confirm_bundle(True))["status"] == "verified"
+    assert (await workflow.confirm_bundle())["status"] == "verified"
 
 
 @pytest.mark.asyncio
@@ -123,7 +148,7 @@ async def test_repeated_bundle_preparation_preserves_phone_confirmation() -> Non
     workflow.prepare_phone("415 555 0142")
     workflow.caller_turn_committed("yes")
     workflow.prepare_bundle("482731", "94105")
-    assert (await workflow.confirm_phone(True))["status"] == "continue_verification"
+    assert (await workflow.confirm_phone())["status"] == "continue_verification"
 
 
 @pytest.mark.asyncio
@@ -132,7 +157,26 @@ async def test_natural_readback_correction_is_not_a_verification_attempt() -> No
     workflow.state.accept_consent()
     workflow.prepare_phone("415 555 0142")
     workflow.caller_turn_committed("Not quite, I meant a different number")
-    assert (await workflow.confirm_phone(False))["status"] == "correction_needed"
+    assert (await workflow.confirm_phone())["status"] == "correction_needed"
+    assert workflow.state.attempts_used == 0
+
+
+@pytest.mark.asyncio
+async def test_unclear_readback_does_not_advance_or_consume_an_attempt() -> None:
+    workflow = _workflow()
+    workflow.state.accept_consent()
+    workflow.prepare_phone("415 555 0142")
+    workflow.caller_turn_committed("Sounds good")
+    assert await workflow.confirm_phone() == {"status": "clarification_needed"}
+    assert workflow.state.auth == Auth.UNVERIFIED
+    workflow.caller_turn_committed("Um, yes, that's right")
+    assert (await workflow.confirm_phone())["status"] == "continue_verification"
+    workflow.prepare_bundle("482731", "94105")
+    workflow.caller_turn_committed("Yes, but the ZIP is 10001")
+    assert await workflow.confirm_bundle() == {"status": "clarification_needed"}
+    assert workflow.state.attempts_used == 0
+    workflow.caller_turn_committed("No, that ZIP is wrong")
+    assert (await workflow.confirm_bundle())["status"] == "correction_needed"
     assert workflow.state.attempts_used == 0
 
 
@@ -142,10 +186,10 @@ async def test_unknown_phone_follows_generic_failure_path() -> None:
     workflow.state.accept_consent()
     workflow.prepare_phone("4155550199")
     workflow.caller_turn_committed("yes")
-    assert (await workflow.confirm_phone(True))["status"] == "continue_verification"
+    assert (await workflow.confirm_phone())["status"] == "continue_verification"
     workflow.prepare_bundle("482731", "94105")
     workflow.caller_turn_committed("yes")
-    result = await workflow.confirm_bundle(True)
+    result = await workflow.confirm_bundle()
     assert result["status"] == "retry"
     assert "could not verify an account" in result["spoken_message"]
     assert "recheck the phone number" in result["spoken_message"]
