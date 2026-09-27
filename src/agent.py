@@ -298,6 +298,7 @@ async def claims_support_agent(ctx: JobContext) -> None:
         ),
         turn_handling=TurnHandlingOptions(
             turn_detection=inference.TurnDetector(),
+            endpointing={"mode": "fixed", "min_delay": 0.3, "max_delay": 2.5},
             interruption={"mode": "adaptive"},
             preemptive_generation={"enabled": False},
         ),
