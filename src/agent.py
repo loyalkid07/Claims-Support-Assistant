@@ -30,7 +30,7 @@ from outbox import InteractionDelivery, SupabaseOutbox
 from postcall import CompletionOnce, CompletionRunner, TrustedEvent
 from prompts import PERSONA_NAME
 from prompts.v2 import INSTRUCTIONS, PROMPT_VERSION
-from session_state import Handoff, SessionState
+from session_state import Auth, Handoff, SessionState
 from supabase_claims import SupabaseClaimsRepository
 from verification import IdentityVerifier
 from voice_workflow import VoiceWorkflow
@@ -125,7 +125,10 @@ class ClaimsAssistant(Agent):
         """Prepare a synthetic claim ID and postal code for caller readback."""
 
         try:
-            return self.workflow.prepare_bundle(claim_id_spoken, postal_spoken)
+            result = self.workflow.prepare_bundle(claim_id_spoken, postal_spoken)
+            if self.workflow.state.auth != Auth.CANDIDATE_READY:
+                return {"status": "bundle_saved_wait_for_phone_confirmation"}
+            return result
         except PolicyError as exc:
             return _safe_tool_error(self.workflow, exc)
 
@@ -140,7 +143,7 @@ class ClaimsAssistant(Agent):
 
     @function_tool()
     async def get_claim_status(self, context: RunContext) -> dict:
-        """Return the verified claim headline without a full detail dump."""
+        """Return verified status only; fulfill an earlier detail request separately."""
 
         try:
             self._claim_projection = await self.workflow.get_claim_status()
@@ -151,7 +154,12 @@ class ClaimsAssistant(Agent):
 
     @function_tool()
     async def get_claim_detail(self, context: RunContext, topic: str) -> dict:
-        """Get one verified detail topic after the caller asks for it."""
+        """Get one verified detail topic requested by the caller.
+
+        Use representative for an assigned person's name or contact.
+        Use claim_context for claim ID, type, loss date, or last update.
+        Other topics: next_step, documents, document_receipt.
+        """
 
         try:
             claim_ref = self.workflow.state.require_claim_ref()

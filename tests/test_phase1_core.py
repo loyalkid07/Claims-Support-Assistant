@@ -4,6 +4,7 @@ import pytest
 
 from errors import PolicyError
 from identifiers import (
+    extract_labeled_bundle,
     lookup_token,
     normalize_claim_id,
     normalize_phone,
@@ -78,6 +79,15 @@ def verifier(record: CustomerCandidate | None) -> IdentityVerifier:
 
 
 def test_normalization_and_rejection() -> None:
+    assert extract_labeled_bundle("Claim 482731, ZIP 95814") == (
+        "482731",
+        "95814",
+    )
+    assert extract_labeled_bundle("ZIP is 95814, CLM-482731") == (
+        "482731",
+        "95814",
+    )
+    assert extract_labeled_bundle("My claim is 482731") is None
     assert normalize_phone("four one five 555 0142") == "+14155550142"
     assert (
         normalize_phone("my number is four fifteen triple five 0142") == "+14155550142"
@@ -115,6 +125,10 @@ async def test_early_slots_wait_for_consent_and_confirmation() -> None:
     assert await service.confirm_phone(confirmed=True) == {
         "status": "continue_verification"
     }
+    with pytest.raises(PolicyError, match="CONFIRMATION_REQUIRED"):
+        await service.confirm_bundle(confirmed=True)
+    assert state.attempts_used == 0
+    service.on_caller_turn()
     assert await service.confirm_bundle(confirmed=True) == {"status": "verified"}
     assert service.authorized_claim_ref() == "claim-1"
     assert state.attempts_used == 1

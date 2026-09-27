@@ -10,6 +10,7 @@ from handoff import (
     HANDOFF_WAIT_SECONDS,
     SupabaseHandoffRepository,
 )
+from identifiers import extract_labeled_bundle
 from postcall import CallerCue, TrustedEvent
 from session_state import Auth, Handoff, Route, SessionState
 from supabase_claims import SupabaseClaimsRepository
@@ -36,7 +37,7 @@ class VoiceWorkflow:
         self._confirmation_signal: bool | None = None
 
     def caller_turn_committed(self, text: str) -> None:
-        """Only the LiveKit event handler calls this, never a model tool."""
+        """Capture a trusted caller turn and any clearly labeled claim/ZIP pair."""
 
         self.verifier.on_caller_turn()
         normalized = re.sub(r"\s+", " ", text.strip().lower())
@@ -66,6 +67,10 @@ class VoiceWorkflow:
             self._confirmation_signal = False
         else:
             self._confirmation_signal = None
+        bundle = extract_labeled_bundle(text)
+        if bundle is not None:
+            with suppress(PolicyError):
+                self.prepare_bundle(*bundle)
 
     def prepare_phone(self, spoken: str) -> dict:
         self.state.require_identifier_access()
@@ -84,7 +89,6 @@ class VoiceWorkflow:
         self.state.require_identifier_access()
         self.state.change_route(Route.ACCOUNT_ACCESS)
         self.verifier.prepare_bundle(claim_id_spoken, postal_spoken)
-        self._confirmation_signal = None
         return {"status": "confirm_bundle"}
 
     async def confirm_bundle(self, confirmed: bool) -> dict:

@@ -102,6 +102,29 @@ async def test_claim_tool_requires_separate_confirmed_turns() -> None:
 
 
 @pytest.mark.asyncio
+async def test_labeled_claim_and_zip_are_captured_before_phone() -> None:
+    workflow = _workflow()
+    workflow.state.accept_consent()
+    workflow.caller_turn_committed("Claim 482731, ZIP 94105")
+    workflow.caller_turn_committed("415 555 0142")
+    workflow.prepare_phone("415 555 0142")
+    workflow.caller_turn_committed("yes")
+    assert (await workflow.confirm_phone(True))["status"] == "continue_verification"
+    workflow.caller_turn_committed("yes")
+    assert (await workflow.confirm_bundle(True))["status"] == "verified"
+
+
+@pytest.mark.asyncio
+async def test_repeated_bundle_preparation_preserves_phone_confirmation() -> None:
+    workflow = _workflow()
+    workflow.state.accept_consent()
+    workflow.prepare_phone("415 555 0142")
+    workflow.caller_turn_committed("yes")
+    workflow.prepare_bundle("482731", "94105")
+    assert (await workflow.confirm_phone(True))["status"] == "continue_verification"
+
+
+@pytest.mark.asyncio
 async def test_natural_readback_correction_is_not_a_verification_attempt() -> None:
     workflow = _workflow()
     workflow.state.accept_consent()

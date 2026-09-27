@@ -32,7 +32,7 @@ def test_voice_configuration_is_explicit() -> None:
     assert "may be recorded" not in OPENING
     assert "test details" not in OPENING
     assert "Would you like to continue?" not in OPENING
-    assert "call get_claim_status for the stored status headline" in INSTRUCTIONS
+    assert "call get_claim_status and say the stored status" in INSTRUCTIONS
     assert "please say yes or no" in INSTRUCTIONS.lower()
     assert "Do not ask for a reason or require verification" in INSTRUCTIONS
 

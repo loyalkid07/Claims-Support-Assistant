@@ -3,22 +3,16 @@
 from errors import PolicyError
 
 DETAIL_TOPICS = frozenset(
-    {"next_step", "documents", "document_receipt", "claim_context"}
+    {"next_step", "documents", "document_receipt", "claim_context", "representative"}
 )
 
 
 def claim_headline(claim: dict) -> dict:
     """Expose the stored status without releasing every detail in one turn."""
 
-    topics = ["next_step", "claim_context"]
-    if claim.get("required_documents"):
-        topics.append("documents")
-    if claim.get("document_receipt", {}).get("status") in {"RECEIVED", "PARTIAL"}:
-        topics.append("document_receipt")
     return {
         "result": "found",
         "claim_status": claim["status"],
-        "available_details": topics,
     }
 
 
@@ -40,10 +34,17 @@ def claim_detail(claim: dict, topic: str) -> dict:
         }
     elif topic == "document_receipt":
         detail = claim["document_receipt"]
+    elif topic == "representative":
+        detail = {"assigned_representative": claim.get("assigned_representative")}
     else:
         detail = {
             key: claim[key]
-            for key in ("claim_type", "loss_date", "last_updated_date")
+            for key in (
+                "claim_id_display",
+                "claim_type",
+                "loss_date",
+                "last_updated_date",
+            )
             if claim.get(key) is not None
         }
     return {"result": "found", "topic": topic, "detail": detail}

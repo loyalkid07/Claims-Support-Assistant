@@ -60,11 +60,14 @@ class IdentityVerifier:
         self._pending_phone: _PendingPhone | None = None
         self._pending_bundle: _PendingBundle | None = None
         self._candidate: CustomerCandidate | None = None
+        self._caller_turns = 0
+        self._phone_confirmation_turn: int | None = None
         self.last_failure_reason: str | None = None
 
     def on_caller_turn(self) -> None:
         """Trusted turn boundary; model tools cannot supply or forge a turn index."""
 
+        self._caller_turns += 1
         if self._pending_phone is not None:
             self._pending_phone.ready_for_confirmation = True
         if self._pending_bundle is not None:
@@ -77,6 +80,7 @@ class IdentityVerifier:
         normalized = normalize_phone(spoken)
         generation = self.state.new_lookup_generation()
         self._candidate = None
+        self._phone_confirmation_turn = None
         self._pending_phone = _PendingPhone(
             token=lookup_token(self._secret, "phone", normalized),
             last_four=normalized[-4:],
@@ -99,6 +103,7 @@ class IdentityVerifier:
         self.state.reject_stale(pending.generation)
         self._candidate = candidate
         self.state.set_candidate(pending.generation, str(uuid4()))
+        self._phone_confirmation_turn = self._caller_turns
         return {"status": "continue_verification"}
 
     def prepare_bundle(
@@ -127,6 +132,11 @@ class IdentityVerifier:
             return {"status": "correction_needed"}
         if self.state.auth != Auth.CANDIDATE_READY:
             raise PolicyError("CANDIDATE_REQUIRED")
+        if (
+            self._phone_confirmation_turn is None
+            or self._caller_turns <= self._phone_confirmation_turn
+        ):
+            raise PolicyError("CONFIRMATION_REQUIRED")
         self._pending_bundle = None
 
         generation = self.state.request_generation

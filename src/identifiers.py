@@ -42,6 +42,25 @@ _TENS = {
     "ninety": "9",
 }
 
+_LABELED_CLAIM = re.compile(
+    r"\b(?:claim(?:\s+(?:number|id))?|clm)\s*(?:is\s*)?[-:#]?\s*(\d{6})\b",
+    re.IGNORECASE,
+)
+_LABELED_POSTAL = re.compile(
+    r"\b(?:zip(?:\s+code)?|postal(?:\s+code)?)\s*(?:is\s*)?[-:#]?\s*(\d{5})\b",
+    re.IGNORECASE,
+)
+
+
+def extract_labeled_bundle(text: str) -> tuple[str, str] | None:
+    """Capture an unambiguous numeric claim-and-ZIP pair from one caller turn."""
+
+    claim = _LABELED_CLAIM.search(text)
+    postal = _LABELED_POSTAL.search(text)
+    if claim is None or postal is None:
+        return None
+    return claim.group(1), postal.group(1)
+
 
 def _spoken_digits(value: str) -> str:
     if not re.fullmatch(r"[A-Za-z0-9\s()+.\-]+", value):
