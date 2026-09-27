@@ -23,6 +23,7 @@ from livekit.agents import (
 from livekit.plugins import ai_coustics
 
 from airtable_writer import AirtableWriter
+from claim_delivery import claim_detail, claim_headline
 from errors import PolicyError
 from handoff import HANDOFF_WAIT_SECONDS, SupabaseHandoffRepository
 from outbox import InteractionDelivery, SupabaseOutbox
@@ -96,6 +97,8 @@ class ClaimsAssistant(Agent):
         )
         self.workflow = workflow
         self._on_handoff_waiting = on_handoff_waiting
+        self._claim_projection: dict | None = None
+        self._claim_projection_ref: str | None = None
 
     @function_tool()
     async def prepare_phone(self, context: RunContext, spoken: str) -> dict:
@@ -137,10 +140,27 @@ class ClaimsAssistant(Agent):
 
     @function_tool()
     async def get_claim_status(self, context: RunContext) -> dict:
-        """Get the server-authorized synthetic claim projection after verification."""
+        """Return the verified claim headline without a full detail dump."""
 
         try:
-            return await self.workflow.get_claim_status()
+            self._claim_projection = await self.workflow.get_claim_status()
+            self._claim_projection_ref = self.workflow.state.require_claim_ref()
+            return claim_headline(self._claim_projection)
+        except PolicyError as exc:
+            return _safe_tool_error(self.workflow, exc)
+
+    @function_tool()
+    async def get_claim_detail(self, context: RunContext, topic: str) -> dict:
+        """Get one verified detail topic after the caller asks for it."""
+
+        try:
+            claim_ref = self.workflow.state.require_claim_ref()
+            if (
+                self._claim_projection is None
+                or self._claim_projection_ref != claim_ref
+            ):
+                return {"status": "claim_status_required"}
+            return claim_detail(self._claim_projection, topic)
         except PolicyError as exc:
             return _safe_tool_error(self.workflow, exc)
 
