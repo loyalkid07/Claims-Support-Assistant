@@ -27,6 +27,7 @@ def test_voice_configuration_is_explicit() -> None:
     assert PROMPT_VERSION == "prompt-v2"
     assert PERSONA_NAME == "Lucia"
     assert f"I'm {PERSONA_NAME}, your automated claims assistant" in OPENING
+    assert f"You are {PERSONA_NAME}," in INSTRUCTIONS
     assert "How can I help today?" in OPENING
     assert "may be recorded" not in OPENING
     assert "test details" not in OPENING

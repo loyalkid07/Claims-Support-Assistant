@@ -27,7 +27,8 @@ from errors import PolicyError
 from handoff import HANDOFF_WAIT_SECONDS, SupabaseHandoffRepository
 from outbox import InteractionDelivery, SupabaseOutbox
 from postcall import CompletionOnce, CompletionRunner, TrustedEvent
-from prompt_v2 import INSTRUCTIONS, PROMPT_VERSION
+from prompts import PERSONA_NAME
+from prompts.v2 import INSTRUCTIONS, PROMPT_VERSION
 from session_state import Handoff, SessionState
 from supabase_claims import SupabaseClaimsRepository
 from verification import IdentityVerifier
@@ -38,7 +39,6 @@ logger = logging.getLogger("claims-support-assistant")
 load_dotenv(".env.local")
 
 AGENT_NAME = "claims-support-assistant"
-PERSONA_NAME = "Lucia"
 STT_MODEL_ID = "deepgram/nova-3"
 LLM_MODEL_ID = "openai/gpt-4.1-mini"
 TTS_MODEL_ID = "cartesia/sonic-3"
