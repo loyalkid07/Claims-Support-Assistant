@@ -33,3 +33,7 @@ evidence/raw/
 # OS files.
 .DS_Store
 Thumbs.db
+
+# Internal working aids and decision logs
+AGENTS.md
+CHANGES.md
