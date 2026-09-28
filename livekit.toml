@@ -1,2 +1,5 @@
+[project]
+  subdomain = "claims-support-assistant-gsqzml9l"
+
 [agent]
-name = "claims-support-assistant"
+  id = "CA_nLAmGkttRuEu"
