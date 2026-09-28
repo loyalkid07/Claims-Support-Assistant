@@ -30,7 +30,7 @@ def test_complete_pinned_snapshot_and_unknown_topic() -> None:
         "status": "found",
         "topic_id": "office_hours",
         "answer_text": "Approved public answer for office_hours.",
-        "version": "faq-v2",
+        "version": "faq-v3",
         "effective_date": "2026-09-26",
         "access_class": "PUBLIC",
     }
@@ -42,16 +42,24 @@ def test_complete_pinned_snapshot_and_unknown_topic() -> None:
 
 def test_reviewer_visible_faq_source_matches_seed_contract() -> None:
     rows = faq_rows()
-    assert len(rows) == 11
+    assert len(rows) == 12
     assert {row["topic_id"] for row in rows} == TOPICS
     assert {row["version"] for row in rows} == {KB_VERSION}
     assert all(row["source_note"] for row in rows)
-    snapshot = FaqSnapshot.from_rows(rows, today=date(2026, 9, 27))
+    snapshot = FaqSnapshot.from_rows(rows, today=date(2026, 9, 28))
     assert (
         "fictional, non-deliverable"
         in snapshot.get_faq("mailing_address")["answer_text"]
     )
     assert "demo claim" not in snapshot.get_faq("general_documents")["answer_text"]
+    email_answer = snapshot.get_faq("general_enquiries_email")["answer_text"]
+    assert "general.enquiries@observe-insurance.example" in email_answer
+    assert "non-deliverable" in email_answer
+    assert "Do not email claim documents" in email_answer
+    start_answer = snapshot.get_faq("start_new_claim")["answer_text"]
+    assert "representative who can help start a claim" in start_answer
+    assert "If you have your policy number" in start_answer
+    assert "Would you like me to connect you?" in start_answer
 
 
 @pytest.mark.parametrize(
@@ -76,7 +84,7 @@ def test_snapshot_rejects_incomplete_or_unapproved_rows(mutate) -> None:
 async def test_supabase_loads_one_versioned_snapshot() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path.endswith("/faq_entries")
-        assert request.url.params["version"] == "eq.faq-v2"
+        assert request.url.params["version"] == "eq.faq-v3"
         assert request.url.params["is_active"] == "eq.true"
         return httpx.Response(200, json=_rows())
 

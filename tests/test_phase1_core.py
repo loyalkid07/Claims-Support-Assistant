@@ -207,6 +207,14 @@ def test_completion_is_repeatable_and_sentiment_uses_caller_evidence() -> None:
     assert "Unverified name" not in result.summary
 
 
+def test_agent_ended_call_is_not_mislabeled_as_caller_disconnect() -> None:
+    state = SessionState(room_name="synthetic-room")
+    state.begin_ending()
+    state.end()
+    result = CompletionOnce().build(state, (TrustedEvent.CALL_ENDED,))
+    assert result.outcome == "ended"
+
+
 def test_verified_name_is_allowed_only_after_server_verification() -> None:
     state = SessionState(room_name="synthetic-room")
     state.accept_consent()

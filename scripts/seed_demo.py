@@ -23,7 +23,7 @@ from identifiers import (
 
 ROOT = Path(__file__).resolve().parents[1]
 FACTORS = ROOT / "context bin" / "fixtures" / "demo_factors.json"
-FAQ_SOURCE = ROOT / "knowledge" / "faq_v2.json"
+FAQ_SOURCE = ROOT / "knowledge" / "faq_v3.json"
 CASES = {
     "maya": {
         "claim_type": "AUTO_PHYSICAL_DAMAGE",

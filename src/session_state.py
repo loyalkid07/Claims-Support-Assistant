@@ -176,3 +176,14 @@ class SessionState:
         if self.phase != CallPhase.ENDED:
             self.phase = CallPhase.ENDED
             self.ended_at_utc = datetime.now(timezone.utc)
+
+    def begin_ending(self) -> None:
+        """Allow a normal hangup only while the AI still owns the call."""
+
+        if self.phase != CallPhase.ACTIVE or self.handoff in {
+            Handoff.REQUESTED,
+            Handoff.WAITING,
+            Handoff.CONNECTED,
+        }:
+            raise PolicyError("INVALID_TRANSITION")
+        self.phase = CallPhase.ENDING

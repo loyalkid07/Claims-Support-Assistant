@@ -1,7 +1,7 @@
 import pytest
 
 from errors import PolicyError
-from faq import TOPICS, FaqSnapshot
+from faq import KB_VERSION, TOPICS, FaqSnapshot
 from identifiers import lookup_token
 from postcall import CallerCue, TrustedEvent, caller_sentiment
 from session_state import Auth, SessionState
@@ -37,7 +37,7 @@ def _workflow() -> VoiceWorkflow:
     rows = [
         {
             "topic_id": topic,
-            "version": "faq-v2",
+            "version": KB_VERSION,
             "answer_text": f"Approved {topic} answer.",
             "access_class": "PUBLIC",
             "effective_from": "2026-09-26",

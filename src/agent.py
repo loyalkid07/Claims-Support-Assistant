@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import os
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import replace
 
 import httpx
@@ -29,7 +29,7 @@ from handoff import HANDOFF_WAIT_SECONDS, SupabaseHandoffRepository
 from outbox import InteractionDelivery, SupabaseOutbox
 from postcall import CompletionOnce, CompletionRunner, TrustedEvent
 from prompts import PERSONA_NAME
-from prompts.v2 import INSTRUCTIONS, PROMPT_VERSION
+from prompts.v3 import INSTRUCTIONS, PROMPT_VERSION
 from session_state import Auth, Handoff, SessionState
 from supabase_claims import SupabaseClaimsRepository
 from verification import IdentityVerifier
@@ -44,7 +44,7 @@ STT_MODEL_ID = "deepgram/nova-3"
 LLM_MODEL_ID = "openai/gpt-4.1-mini"
 TTS_MODEL_ID = "cartesia/sonic-3"
 TTS_VOICE_ID = "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"
-WORKFLOW_VERSION = "workflow-v2"
+WORKFLOW_VERSION = "workflow-v3"
 MODEL_STACK_VERSION = f"{STT_MODEL_ID}|{LLM_MODEL_ID}|{TTS_MODEL_ID}|{TTS_VOICE_ID}"
 
 OPENING = (
@@ -56,6 +56,8 @@ OPENING = (
 HANDOFF_INTRO = (
     "A representative has joined. I'll step out now so you can continue with them."
 )
+GOODBYE = "Thanks for calling Observe Insurance. Goodbye."
+GOODBYE_PLAYOUT_TIMEOUT_SECONDS = 10.0
 
 
 async def finish_handoff_segment(
@@ -66,6 +68,24 @@ async def finish_handoff_segment(
     speech = session.say(HANDOFF_INTRO)
     await speech.wait_for_playout()
     session.shutdown(drain=True)
+    await completion.run()
+
+
+async def finish_normal_call(
+    session: AgentSession,
+    disconnect: Callable[[], Awaitable[None]],
+    completion: CompletionRunner,
+) -> None:
+    """Play the goodbye before disconnecting everyone from the call room."""
+
+    speech = session.say(GOODBYE)
+    try:
+        await asyncio.wait_for(
+            speech.wait_for_playout(), timeout=GOODBYE_PLAYOUT_TIMEOUT_SECONDS
+        )
+    except TimeoutError:
+        logger.warning("goodbye playout timed out; disconnecting call room")
+    await disconnect()
     await completion.run()
 
 
@@ -90,12 +110,14 @@ class ClaimsAssistant(Agent):
         self,
         workflow: VoiceWorkflow,
         on_handoff_waiting: Callable[[str], None] | None = None,
+        on_end_call: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         super().__init__(
             llm=inference.LLM(model=LLM_MODEL_ID), instructions=INSTRUCTIONS
         )
         self.workflow = workflow
         self._on_handoff_waiting = on_handoff_waiting
+        self._on_end_call = on_end_call
         self._claim_projection: dict | None = None
         self._claim_projection_ref: str | None = None
 
@@ -194,6 +216,28 @@ class ClaimsAssistant(Agent):
             return result
         except PolicyError as exc:
             return _safe_tool_error(self.workflow, exc)
+
+    @function_tool()
+    async def end_call(self, context: RunContext) -> dict:
+        """End only after the caller clearly says there is nothing else needed."""
+
+        if self._on_end_call is None:
+            return {"status": "temporarily_unavailable"}
+        try:
+            self.workflow.state.begin_ending()
+        except PolicyError as exc:
+            return _safe_tool_error(self.workflow, exc)
+        self.workflow.events.append(TrustedEvent.CALL_ENDED)
+        try:
+            await self._on_end_call()
+        except Exception as exc:
+            self.workflow.tool_error_count += 1
+            logger.error("automatic call disconnect failed: %s", type(exc).__name__)
+            return {
+                "status": "disconnect_failed",
+                "spoken_message": "I couldn't disconnect automatically. Please hang up from your side.",
+            }
+        return {"status": "ended"}
 
 
 server = AgentServer(shutdown_process_timeout=25.0)
@@ -307,7 +351,7 @@ async def claims_support_agent(ctx: JobContext) -> None:
             turn_detection=inference.TurnDetector(),
             endpointing={"mode": "fixed", "min_delay": 0.3, "max_delay": 2.5},
             interruption={"mode": "adaptive"},
-            preemptive_generation={"enabled": False},
+            preemptive_generation={"enabled": True, "preemptive_tts": False},
         ),
     )
 
@@ -360,6 +404,12 @@ async def claims_support_agent(ctx: JobContext) -> None:
 
         handoff_timer = asyncio.create_task(wait_for_supervisor())
 
+    async def on_end_call() -> None:
+        async def disconnect() -> None:
+            await ctx.delete_room()
+
+        await finish_normal_call(session, disconnect, completion_runner)
+
     logger.info(
         "starting claims session with stt=%s llm=%s tts=%s",
         STT_MODEL_ID,
@@ -368,7 +418,7 @@ async def claims_support_agent(ctx: JobContext) -> None:
     )
 
     await session.start(
-        agent=ClaimsAssistant(workflow, on_handoff_waiting),
+        agent=ClaimsAssistant(workflow, on_handoff_waiting, on_end_call),
         room=ctx.room,
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(

@@ -19,6 +19,7 @@ class TrustedEvent(str, Enum):
     FAQ_ANSWERED = "FAQ_ANSWERED"
     FAQ_OFFICE_HOURS = "FAQ_OFFICE_HOURS"
     FAQ_MAILING_ADDRESS = "FAQ_MAILING_ADDRESS"
+    FAQ_GENERAL_ENQUIRIES_EMAIL = "FAQ_GENERAL_ENQUIRIES_EMAIL"
     FAQ_START_NEW_CLAIM = "FAQ_START_NEW_CLAIM"
     FAQ_WHAT_TO_GATHER = "FAQ_WHAT_TO_GATHER"
     FAQ_GENERAL_PROCESS = "FAQ_GENERAL_PROCESS"
@@ -33,12 +34,14 @@ class TrustedEvent(str, Enum):
     HANDOFF_REQUESTED = "HANDOFF_REQUESTED"
     HANDOFF_CONNECTED = "HANDOFF_CONNECTED"
     HANDOFF_UNAVAILABLE = "HANDOFF_UNAVAILABLE"
+    CALL_ENDED = "CALL_ENDED"
     CALLER_DISCONNECTED = "CALLER_DISCONNECTED"
 
 
 FAQ_TOPIC_EVENTS = {
     "office_hours": TrustedEvent.FAQ_OFFICE_HOURS,
     "mailing_address": TrustedEvent.FAQ_MAILING_ADDRESS,
+    "general_enquiries_email": TrustedEvent.FAQ_GENERAL_ENQUIRIES_EMAIL,
     "start_new_claim": TrustedEvent.FAQ_START_NEW_CLAIM,
     "what_to_gather": TrustedEvent.FAQ_WHAT_TO_GATHER,
     "general_process": TrustedEvent.FAQ_GENERAL_PROCESS,
@@ -52,6 +55,7 @@ FAQ_TOPIC_EVENTS = {
 FAQ_TOPIC_LABELS = {
     TrustedEvent.FAQ_OFFICE_HOURS: "office hours",
     TrustedEvent.FAQ_MAILING_ADDRESS: "the mailing address",
+    TrustedEvent.FAQ_GENERAL_ENQUIRIES_EMAIL: "the demo general enquiries email",
     TrustedEvent.FAQ_START_NEW_CLAIM: "starting a new claim",
     TrustedEvent.FAQ_WHAT_TO_GATHER: "what to gather for a claim",
     TrustedEvent.FAQ_GENERAL_PROCESS: "the claims process",
