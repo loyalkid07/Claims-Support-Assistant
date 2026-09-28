@@ -29,8 +29,8 @@ def test_voice_configuration_is_explicit() -> None:
     assert LLM_MODEL_ID == "openai/gpt-4.1-mini"
     assert TTS_MODEL_ID == "cartesia/sonic-3"
     assert TTS_VOICE_ID
-    assert PROMPT_VERSION == "prompt-v3"
-    assert WORKFLOW_VERSION == "workflow-v3"
+    assert PROMPT_VERSION == "prompt-v4"
+    assert WORKFLOW_VERSION == "workflow-v4"
     assert PERSONA_NAME == "Lucia"
     assert f"I'm {PERSONA_NAME}, your automated claims assistant" in OPENING
     assert f"You are {PERSONA_NAME}," in INSTRUCTIONS
@@ -38,7 +38,10 @@ def test_voice_configuration_is_explicit() -> None:
     assert "may be recorded" not in OPENING
     assert "test details" not in OPENING
     assert "Would you like to continue?" not in OPENING
-    assert "call get_claim_status and say the stored status" in INSTRUCTIONS
+    assert (
+        "say the stored status first, then briefly state its recorded next action"
+        in INSTRUCTIONS
+    )
     assert "please say yes or no" in INSTRUCTIONS.lower()
     assert "Do not ask for a reason or require verification" in INSTRUCTIONS
     assert "Call end_call only when the caller clearly says" in INSTRUCTIONS

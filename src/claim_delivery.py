@@ -1,4 +1,4 @@
-"""Limit the first claim-status tool result to what a caller needs first."""
+"""Limit the first claim-status result to status and one next action."""
 
 from errors import PolicyError
 
@@ -8,12 +8,15 @@ DETAIL_TOPICS = frozenset(
 
 
 def claim_headline(claim: dict) -> dict:
-    """Expose the stored status without releasing every detail in one turn."""
+    """Expose the stored status and recorded next action, when available."""
 
-    return {
+    result = {
         "result": "found",
         "claim_status": claim["status"],
     }
+    if claim.get("next_action"):
+        result["next_action"] = claim["next_action"]
+    return result
 
 
 def claim_detail(claim: dict, topic: str) -> dict:

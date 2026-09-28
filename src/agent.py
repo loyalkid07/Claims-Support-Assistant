@@ -29,7 +29,7 @@ from handoff import HANDOFF_WAIT_SECONDS, SupabaseHandoffRepository
 from outbox import InteractionDelivery, SupabaseOutbox
 from postcall import CompletionOnce, CompletionRunner, TrustedEvent
 from prompts import PERSONA_NAME
-from prompts.v3 import INSTRUCTIONS, PROMPT_VERSION
+from prompts.v4 import INSTRUCTIONS, PROMPT_VERSION
 from session_state import Auth, Handoff, SessionState
 from supabase_claims import SupabaseClaimsRepository
 from verification import IdentityVerifier
@@ -44,7 +44,7 @@ STT_MODEL_ID = "deepgram/nova-3"
 LLM_MODEL_ID = "openai/gpt-4.1-mini"
 TTS_MODEL_ID = "cartesia/sonic-3"
 TTS_VOICE_ID = "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"
-WORKFLOW_VERSION = "workflow-v3"
+WORKFLOW_VERSION = "workflow-v4"
 MODEL_STACK_VERSION = f"{STT_MODEL_ID}|{LLM_MODEL_ID}|{TTS_MODEL_ID}|{TTS_VOICE_ID}"
 
 OPENING = (
@@ -164,7 +164,7 @@ class ClaimsAssistant(Agent):
 
     @function_tool()
     async def get_claim_status(self, context: RunContext) -> dict:
-        """Return verified status only; fulfill an earlier detail request separately."""
+        """Return verified status and one next action; fetch other details separately."""
 
         try:
             self._claim_projection = await self.workflow.get_claim_status()

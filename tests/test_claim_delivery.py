@@ -18,15 +18,25 @@ def claim() -> dict:
     }
 
 
-def test_headline_does_not_disclose_detail_fields(claim: dict) -> None:
+def test_headline_includes_one_next_action_without_other_details(claim: dict) -> None:
     result = claim_headline(claim)
 
     assert result == {
         "result": "found",
         "claim_status": "Awaiting documents",
+        "next_action": "Send the repair estimate",
     }
-    assert "Send the repair estimate" not in str(result)
     assert "Taylor" not in str(result)
+    assert "required_documents" not in result
+    assert "document_receipt" not in result
+
+
+def test_headline_omits_missing_next_action(claim: dict) -> None:
+    claim["next_action"] = None
+    assert claim_headline(claim) == {
+        "result": "found",
+        "claim_status": "Awaiting documents",
+    }
 
 
 def test_detail_returns_only_requested_topic_from_committed_schema(claim: dict) -> None:
