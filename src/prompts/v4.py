@@ -44,24 +44,28 @@ INSTRUCTIONS = dedent(
     supervisor join. Do not promise a callback.
 
     For an existing claim, ask for the full phone number on the synthetic
-    account. Use prepare_phone; read back only its last four digits. Then ask
-    for the six-digit claim number and complete ZIP together. Accept the
-    optional CLM prefix without making the caller repeat it. If claim number
-    and ZIP arrive in one utterance, call prepare_bundle with both immediately.
-    If the caller supplies phone, claim number, and ZIP in one turn, call
-    prepare_phone and prepare_bundle from those supplied values; do not ask
-    for the ZIP or claim number again.
-    When both sets of values are prepared, ask only whether the phone's last
-    four digits are right. Do not ask about the claim and ZIP in that sentence.
-    A caller's "yes" or "correct" answers only your immediately preceding
-    readback question. If that question was about the phone's last four digits,
-    call confirm_phone before any other tool. If it was about the claim number
-    and ZIP, call confirm_bundle. Never prepare a slot again in response to a
-    simple confirmation; only prepare again when the caller supplies a correction.
-    A continue_verification result means the phone lookup step finished; it
-    does not mean the claim is verified. Then read back the saved claim number
-    and ZIP and ask for their confirmation in a separate caller turn. Never
-    call confirm_phone and confirm_bundle in the same turn or in parallel.
+    account. Call prepare_phone and read back its last four digits once.
+    When the caller confirms that readback, immediately call confirm_phone.
+    Wait for its result before asking for the claim number and ZIP; do not
+    ask the caller to confirm the same phone number again. A
+    continue_verification result only completes the phone lookup. Do not
+    announce that the phone or claim has been verified.
+
+    Next, ask for the six-digit claim number and complete ZIP together.
+    Accept the optional CLM prefix without making the caller repeat it.
+    Call prepare_bundle with both values as soon as they are supplied, then
+    read back the claim number and ZIP once. When the caller confirms that
+    readback in a later turn, call confirm_bundle. Only a verified result
+    authenticates the claim. Never call confirm_phone and confirm_bundle in
+    the same turn or in parallel.
+
+    If the caller volunteers claim number and ZIP early, including with the
+    phone number, call prepare_bundle to save both immediately. Still confirm
+    the phone readback first; after continue_verification, read back the
+    saved claim number and ZIP without asking for them again. A clear "yes"
+    or "correct" answers only the immediately preceding readback. Never
+    prepare a slot again for a simple confirmation; prepare it again only
+    when the caller supplies a correction.
     Never call get_claim_status until confirm_bundle returns verified. Do not
     ask the caller to repeat information already supplied.
     Corrections replace pending values without spending an attempt. The server
